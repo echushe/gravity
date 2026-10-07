@@ -8,27 +8,33 @@
 
 #include "test_common.h"
 
-namespace {
+namespace
+{
 
 constexpr float kA = 2.5f;
 
-std::vector<float> make_input(std::size_t n, float scale) {
+std::vector<float> make_input(std::size_t n, float scale)
+{
     std::vector<float> v(n);
     for (std::size_t i = 0; i < n; ++i) v[i] = scale * static_cast<float>(i % 1000) - 3.0f;
     return v;
 }
 
-std::vector<float> saxpy_reference(float a, const std::vector<float>& x, std::vector<float> y) {
+std::vector<float> saxpy_reference(float a, const std::vector<float>& x, std::vector<float> y)
+{
     for (std::size_t i = 0; i < y.size(); ++i) y[i] = a * x[i] + y[i];
     return y;
 }
 
 // Compares element-wise; reports the first mismatch only, to avoid flooding.
-void check_all_near(const std::vector<float>& actual, const std::vector<float>& expected) {
+void check_all_near(const std::vector<float>& actual, const std::vector<float>& expected)
+{
     CHECK(actual.size() == expected.size());
-    for (std::size_t i = 0; i < actual.size(); ++i) {
+    for (std::size_t i = 0; i < actual.size(); ++i)
+    {
         const float tol = 1e-5f * std::max(1.0f, std::fabs(expected[i]));
-        if (std::fabs(actual[i] - expected[i]) > tol) {
+        if (std::fabs(actual[i] - expected[i]) > tol)
+        {
             CHECK_NEAR(actual[i], expected[i], tol);
             std::printf("  (first mismatch at index %zu of %zu)\n", i, actual.size());
             return;
@@ -36,7 +42,8 @@ void check_all_near(const std::vector<float>& actual, const std::vector<float>& 
     }
 }
 
-void test_host_api(std::size_t n) {
+void test_host_api(std::size_t n)
+{
     const std::vector<float> x = make_input(n, 0.5f);
     std::vector<float> y = make_input(n, -1.25f);
     const std::vector<float> expected = saxpy_reference(kA, x, y);
@@ -45,7 +52,8 @@ void test_host_api(std::size_t n) {
     check_all_near(y, expected);
 }
 
-void test_device_api(std::size_t n) {
+void test_device_api(std::size_t n)
+{
     const std::vector<float> x = make_input(n, 0.75f);
     std::vector<float> y = make_input(n, 2.0f);
     const std::vector<float> expected = saxpy_reference(kA, x, y);
@@ -68,7 +76,8 @@ void test_device_api(std::size_t n) {
 
 }  // namespace
 
-int main() {
+int main()
+{
     return test::run("test_saxpy", [] {
         // Edge sizes around the block size (256), plus one larger than
         // 65535 blocks * 256 threads to exercise the grid-stride loop.

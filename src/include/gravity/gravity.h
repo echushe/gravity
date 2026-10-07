@@ -8,13 +8,14 @@
 #include <stdexcept>
 #include <string>
 
-namespace gravity {
+namespace gravity
+{
 
 // Thrown when a CUDA runtime call made by the library fails.
-class CudaError : public std::runtime_error {
+class CudaError : public std::runtime_error
+{
 public:
-    CudaError(int code, const std::string& what)
-        : std::runtime_error(what), code_(code) {}
+    CudaError(int code, const std::string& what) : std::runtime_error(what), code_(code) {}
 
     // The underlying cudaError_t value.
     int code() const noexcept { return code_; }
@@ -24,7 +25,8 @@ private:
 };
 
 // Properties of a CUDA device.
-struct DeviceInfo {
+struct DeviceInfo
+{
     int id = 0;
     std::string name;
     int compute_major = 0;
@@ -54,6 +56,9 @@ void saxpy_device(float a, const float* d_x, float* d_y, std::size_t n);
 // positions: array of body positions of length 3*n (x, y, z for each body).
 // accelerations: output array of length 3*n.
 // n: number of bodies.
-void calculate_gravity(const float* masses, const float* positions, float* accelerations, std::size_t n);
+void calculate_gravity(const float* masses,
+                       const float* positions,
+                       float* accelerations,
+                       std::size_t n);
 
 }  // namespace gravity

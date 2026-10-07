@@ -8,20 +8,21 @@
 
 #include "gravity/gravity.h"
 
-namespace gravity::detail {
+namespace gravity::detail
+{
 
-inline void cuda_check(cudaError_t err, const char* expr, const char* file, int line) {
+inline void cuda_check(cudaError_t err, const char* expr, const char* file, int line)
+{
     if (err == cudaSuccess) return;
     // Reset the runtime's "last error" so a later cudaGetLastError() check
     // (e.g. after a kernel launch) does not report this stale failure.
     (void)cudaGetLastError();
-    throw CudaError(static_cast<int>(err),
-                    std::string(file) + ":" + std::to_string(line) + ": " + expr +
-                        " failed: " + cudaGetErrorName(err) + " (" +
-                        cudaGetErrorString(err) + ")");
+    const std::string message = std::string(file) + ":" + std::to_string(line) + ": " + expr +
+                                " failed: " + cudaGetErrorName(err) + " (" +
+                                cudaGetErrorString(err) + ")";
+    throw CudaError(static_cast<int>(err), message);
 }
 
 }  // namespace gravity::detail
 
-#define GRAVITY_CUDA_CHECK(expr) \
-    ::gravity::detail::cuda_check((expr), #expr, __FILE__, __LINE__)
+#define GRAVITY_CUDA_CHECK(expr) ::gravity::detail::cuda_check((expr), #expr, __FILE__, __LINE__)

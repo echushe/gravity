@@ -5,18 +5,22 @@
 #include "cuda_check.h"
 #include "gravity/gravity.h"
 
-namespace gravity {
+namespace gravity
+{
 
-int device_count() {
+int device_count()
+{
     int count = 0;
-    if (cudaGetDeviceCount(&count) != cudaSuccess) {
+    if (cudaGetDeviceCount(&count) != cudaSuccess)
+    {
         (void)cudaGetLastError();  // no device / no driver: clear and report 0
         return 0;
     }
     return count;
 }
 
-DeviceInfo device_info(int device) {
+DeviceInfo device_info(int device)
+{
     cudaDeviceProp prop{};
     GRAVITY_CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
 

@@ -1,0 +1,32 @@
+# Code style for this project. VS Code's C/C++ extension and clangd use this
+# file automatically for "Format Document". To reformat everything by hand:
+#   clang-format -i src/*.h src/*.cpp src/*.cu src/include/gravity/*.h tests/*.h tests/*.cpp tests/*.cu
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 100
+AccessModifierOffset: -4
+IncludeBlocks: Preserve
+
+# Parameters that don't fit on one line go one per line.
+BinPackParameters: OnePerLine
+
+# Opening braces go on their own line (except for lambda bodies).
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: Always
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: true
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true

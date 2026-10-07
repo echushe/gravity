@@ -8,12 +8,15 @@
 
 #include "cuda_check.h"
 
-namespace gravity::detail {
+namespace gravity::detail
+{
 
 template <typename T>
-class DeviceBuffer {
+class DeviceBuffer
+{
 public:
-    explicit DeviceBuffer(std::size_t count) : count_(count) {
+    explicit DeviceBuffer(std::size_t count) : count_(count)
+    {
         if (count_ > 0) GRAVITY_CUDA_CHECK(cudaMalloc(&ptr_, bytes()));
     }
     ~DeviceBuffer() { cudaFree(ptr_); }
@@ -24,10 +27,12 @@ public:
     T* get() const noexcept { return ptr_; }
     std::size_t size() const noexcept { return count_; }
 
-    void copy_from_host(const T* src) {
+    void copy_from_host(const T* src)
+    {
         GRAVITY_CUDA_CHECK(cudaMemcpy(ptr_, src, bytes(), cudaMemcpyHostToDevice));
     }
-    void copy_to_host(T* dst) const {
+    void copy_to_host(T* dst) const
+    {
         GRAVITY_CUDA_CHECK(cudaMemcpy(dst, ptr_, bytes(), cudaMemcpyDeviceToHost));
     }
 
