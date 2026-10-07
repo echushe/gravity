@@ -52,7 +52,6 @@ __global__ void calculate_gravity_kernel_1D(const float* __restrict__ masses,
     const std::size_t offset = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     for (std::size_t i = offset; i < n; i += n_threads)
     {
-        const float m_i = masses[i];
         const float x_i = positions[3 * i];
         const float y_i = positions[3 * i + 1];
         const float z_i = positions[3 * i + 2];
@@ -104,7 +103,6 @@ __global__ void calculate_gravity_kernel_2D(const float* __restrict__ masses,
         for (std::size_t j = offset_y; j < n; j += n_threads_y)
         {
             // Implementation for the 2D grid version would go here.
-            const float m_i = masses[i];
             const float x_i = positions[3 * i];
             const float y_i = positions[3 * i + 1];
             const float z_i = positions[3 * i + 2];
@@ -149,7 +147,6 @@ __global__ void accelerations_2D_to_1D(const float* __restrict__ accelerations_2
         for (std::size_t j = 0; j < n; ++j)
         {
             const std::size_t acc_2D_idx = i * n + j;
-            const std::size_t acc_1D_idx = i;
             a_x += accelerations_2D[3 * acc_2D_idx];
             a_y += accelerations_2D[3 * acc_2D_idx + 1];
             a_z += accelerations_2D[3 * acc_2D_idx + 2];
