@@ -22,7 +22,45 @@ __global__ void saxpy_kernel(float a, const float* __restrict__ x,
     }
 }
 
-}  // namespace
+__global__ void calculate_gravity_kernel_1D(const float* __restrict__ masses,
+                                         const float* __restrict__ positions,
+                                         float* __restrict__ accelerations,
+                                         std::size_t n) {
+
+    const std::size_t n_threads = static_cast<std::size_t>(blockDim.x) * gridDim.x;
+    const std::size_t offset = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    for (std::size_t i = offset; i < n; i += n_threads) {
+        const float m_i = masses[i];
+        const float x_i = positions[3 * i];
+        const float y_i = positions[3 * i + 1];
+        const float z_i = positions[3 * i + 2];
+        float a_x = 0.0f;
+        float a_y = 0.0f;
+        float a_z = 0.0f;
+        for (std::size_t j = 0; j < n; ++j) {
+            if (i == j) continue;
+            const float m_j = masses[j];
+            const float x_j = positions[3 * j];
+            const float y_j = positions[3 * j + 1];
+            const float z_j = positions[3 * j + 2];
+            const float dx = x_j - x_i;
+            const float dy = y_j - y_i;
+            const float dz = z_j - z_i;
+            const float dist_sqr = dx * dx + dy * dy + dz * dz + 1e-10f;
+            const float inv_dist = rsqrtf(dist_sqr);
+            const float inv_dist3 = inv_dist * inv_dist * inv_dist;
+            const float f = m_j * inv_dist3;
+            a_x += f * dx;
+            a_y += f * dy;
+            a_z += f * dz;
+        }
+        accelerations[3 * i] = a_x;
+        accelerations[3 * i + 1] = a_y;
+        accelerations[3 * i + 2] = a_z;
+    }
+}
+
+}  // namespace gravity
 
 void saxpy_device(float a, const float* d_x, float* d_y, std::size_t n) {
     if (n == 0) return;
@@ -41,6 +79,30 @@ void saxpy(float a, const float* x, float* y, std::size_t n) {
     d_y.copy_from_host(y);
     saxpy_device(a, d_x.get(), d_y.get(), n);
     d_y.copy_to_host(y);
+}
+
+
+void calculate_gravity_device(const float* d_masses, const float* d_positions, float* d_accelerations, std::size_t n) {
+    if (n == 0) return;
+    calculate_gravity_kernel_1D<<<std::min<std::size_t>((n + kBlockSize - 1) / kBlockSize, kMaxBlocks), kBlockSize>>>(
+        d_masses, d_positions, d_accelerations, n);
+    GRAVITY_CUDA_CHECK(cudaGetLastError());
+    GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
+}
+
+void calculate_gravity(const float* masses, const float* positions, float* accelerations, std::size_t n) {
+    if (n == 0) return;
+    detail::DeviceBuffer<float> d_masses(n);
+    detail::DeviceBuffer<float> d_positions(3 * n);
+    detail::DeviceBuffer<float> d_accelerations(3 * n);
+    d_masses.copy_from_host(masses);
+    d_positions.copy_from_host(positions);
+    // Assuming a kernel calculate_gravity_kernel_1D is defined elsewhere
+    calculate_gravity_kernel_1D<<<std::min<std::size_t>((n + kBlockSize - 1) / kBlockSize, kMaxBlocks), kBlockSize>>>(
+        d_masses.get(), d_positions.get(), d_accelerations.get(), n);
+    GRAVITY_CUDA_CHECK(cudaGetLastError());
+    GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
+    d_accelerations.copy_to_host(accelerations);
 }
 
 }  // namespace gravity

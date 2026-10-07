@@ -49,4 +49,11 @@ void saxpy(float a, const float* x, float* y, std::size_t n);
 // the current device. Blocks until the computation has finished.
 void saxpy_device(float a, const float* d_x, float* d_y, std::size_t n);
 
+// Calculates gravitational accelerations for a set of bodies.
+// masses: array of body masses of length n.
+// positions: array of body positions of length 3*n (x, y, z for each body).
+// accelerations: output array of length 3*n.
+// n: number of bodies.
+void calculate_gravity(const float* masses, const float* positions, float* accelerations, std::size_t n);
+
 }  // namespace gravity
