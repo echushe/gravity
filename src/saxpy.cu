@@ -28,9 +28,24 @@ __global__ void saxpy_kernel(float a,
     }
 }
 
+
+__global__ void scale_1D(float a,
+                      float* __restrict__ y,
+                      std::size_t n)
+{
+    const std::size_t offset = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    const std::size_t stride = static_cast<std::size_t>(blockDim.x) * gridDim.x;
+    for (std::size_t i = offset; i < n; i += stride)
+    {
+        y[i] = a * y[i];
+    }
+}
+
+
 __global__ void calculate_gravity_kernel_1D(const float* __restrict__ masses,
                                             const float* __restrict__ positions,
                                             float* __restrict__ accelerations,
+                                            const float G,
                                             std::size_t n)
 {
     const std::size_t n_threads = static_cast<std::size_t>(blockDim.x) * gridDim.x;
@@ -62,15 +77,16 @@ __global__ void calculate_gravity_kernel_1D(const float* __restrict__ masses,
             a_y += f * dy;
             a_z += f * dz;
         }
-        accelerations[3 * i] = a_x;
-        accelerations[3 * i + 1] = a_y;
-        accelerations[3 * i + 2] = a_z;
+        accelerations[3 * i] = G * a_x ;
+        accelerations[3 * i + 1] = G * a_y;
+        accelerations[3 * i + 2] = G * a_z;
     }
 }
 
 __global__ void calculate_gravity_kernel_2D(const float* __restrict__ masses,
                                             const float* __restrict__ positions,
                                             float* __restrict__ accelerations,
+                                            const float G,
                                             std::size_t n)
 {
     // The output accelerations will be a 2D array corresponding to the 2D grid of threads.
@@ -112,9 +128,9 @@ __global__ void calculate_gravity_kernel_2D(const float* __restrict__ masses,
 
             const std::size_t acc_idx = i * n + j;
 
-            accelerations[3 * acc_idx] = a_x;
-            accelerations[3 * acc_idx + 1] = a_y;
-            accelerations[3 * acc_idx + 2] = a_z;
+            accelerations[3 * acc_idx] = G * a_x;
+            accelerations[3 * acc_idx + 1] = G * a_y;
+            accelerations[3 * acc_idx + 2] = G * a_z;
         }
     }
 }
@@ -144,7 +160,24 @@ __global__ void accelerations_2D_to_1D(const float* __restrict__ accelerations_2
     }
 }
 
-}  // namespace
+
+__global__ void calculate_velocity_kernel_1D(const float* __restrict__ velocities,
+                                             const float* __restrict__ accelerations,
+                                             float* __restrict__ new_velocities,
+                                             const float T,
+                                             std::size_t n)
+{
+    const std::size_t idx = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    const std::size_t stride = static_cast<std::size_t>(blockDim.x) * gridDim.x;
+    for (std::size_t i = idx; i < n; i += stride)
+    {
+        new_velocities[3 * i] = velocities[3 * i] + T * accelerations[3 * i];
+        new_velocities[3 * i + 1] = velocities[3 * i + 1] + T * accelerations[3 * i + 1];
+        new_velocities[3 * i + 2] = velocities[3 * i + 2] + T * accelerations[3 * i + 2];
+    }
+}
+
+}  // namespace gravity
 
 void saxpy_device(float a, const float* d_x, float* d_y, std::size_t n)
 {
@@ -170,12 +203,13 @@ void saxpy(float a, const float* x, float* y, std::size_t n)
 void calculate_gravity_device(const float* d_masses,
                               const float* d_positions,
                               float* d_accelerations,
+                              const float G,
                               std::size_t n)
 {
     if (n == 0) return;
     calculate_gravity_kernel_1D<<<
         std::min<std::size_t>((n + kBlockSize - 1) / kBlockSize, kMaxBlocks), kBlockSize>>>(
-        d_masses, d_positions, d_accelerations, n);
+        d_masses, d_positions, d_accelerations, G, n);
     GRAVITY_CUDA_CHECK(cudaGetLastError());
     GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
 }
@@ -183,6 +217,7 @@ void calculate_gravity_device(const float* d_masses,
 void calculate_gravity(const float* masses,
                        const float* positions,
                        float* accelerations,
+                       const float G,
                        std::size_t n)
 {
     if (n == 0) return;
@@ -194,10 +229,40 @@ void calculate_gravity(const float* masses,
     // Assuming a kernel calculate_gravity_kernel_1D is defined elsewhere
     calculate_gravity_kernel_1D<<<
         std::min<std::size_t>((n + kBlockSize - 1) / kBlockSize, kMaxBlocks), kBlockSize>>>(
-        d_masses.get(), d_positions.get(), d_accelerations.get(), n);
+        d_masses.get(), d_positions.get(), d_accelerations.get(), G, n);
     GRAVITY_CUDA_CHECK(cudaGetLastError());
     GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
     d_accelerations.copy_to_host(accelerations);
+}
+
+void calculate_velocity_device(const float* d_velocities,
+                               const float* d_accelerations,
+                               float* d_new_velocities,
+                               std::size_t n,
+                               const float T)
+{
+    if (n == 0) return;
+    calculate_velocity_kernel_1D<<<
+        std::min<std::size_t>((n + kBlockSize - 1) / kBlockSize, kMaxBlocks), kBlockSize>>>(
+        d_velocities, d_accelerations, d_new_velocities, T, n);
+    GRAVITY_CUDA_CHECK(cudaGetLastError());
+    GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
+}
+
+void calculate_velocity(const float* velocities,
+                        const float* accelerations,
+                        float* new_velocities,
+                        const float T,
+                        std::size_t n)
+{
+    if (n == 0) return;
+    detail::DeviceBuffer<float> d_velocities(3 * n);
+    detail::DeviceBuffer<float> d_accelerations(3 * n);
+    detail::DeviceBuffer<float> d_new_velocities(3 * n);
+    d_velocities.copy_from_host(velocities);
+    d_accelerations.copy_from_host(accelerations);
+    calculate_velocity_device(d_velocities.get(), d_accelerations.get(), d_new_velocities.get(), n, T);
+    d_new_velocities.copy_to_host(new_velocities);
 }
 
 }  // namespace gravity

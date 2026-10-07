@@ -61,4 +61,21 @@ void calculate_gravity(const float* masses,
                        float* accelerations,
                        std::size_t n);
 
+void calculate_gravity_device(const float* d_masses,
+                              const float* d_positions,
+                              float* d_accelerations,
+                              std::size_t n);
+
+void calculate_velocity(const float* positions,
+                        const float* velocities,
+                        const float* accelerations,
+                        float* new_velocities,
+                        std::size_t n);
+
+void calculate_velocity_device(const float* d_positions,
+                               const float* d_velocities,
+                               const float* d_accelerations,
+                               float* d_new_velocities,
+                               std::size_t n);
+
 }  // namespace gravity
