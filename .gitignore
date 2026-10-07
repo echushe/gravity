@@ -1,0 +1,28 @@
+# Build output (libraries, objects, test binaries)
+/build/
+
+# Compiled artifacts, in case anything is built outside build/
+*.o
+*.d
+*.a
+*.so
+*.ptx
+*.cubin
+*.fatbin
+
+# CUDA profiler / debugger output
+*.nsys-rep
+*.ncu-rep
+*.qdrep
+*.sqlite
+core
+core.*
+
+# Editors and tooling
+.vscode/
+.idea/
+.cache/
+compile_commands.json
+*.swp
+*~
+.DS_Store
