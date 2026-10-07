@@ -1,7 +1,12 @@
-# Build output (libraries, objects, test binaries)
-/build/
+# CMake build directories (build/, build-debug/, ...)
+/build*/
 
-# Compiled artifacts, in case anything is built outside build/
+# Leftovers from an attempted in-source build, and per-user presets
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+
+# Compiled artifacts, in case anything is built outside a build directory
 *.o
 *.d
 *.a

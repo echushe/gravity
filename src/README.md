@@ -1,7 +1,8 @@
 # libgravity
 
-A C++17 library with CUDA kernels. It builds into a static library
-(`libgravity.a`) and a shared library (`libgravity.so`).
+A C++17 library with CUDA kernels, built with CMake. It builds as a static
+library (`libgravity.a`) by default, or as a shared library (`libgravity.so`)
+if you ask for one.
 
 The public header is plain C++ and includes no CUDA headers. Code that only
 calls the library can therefore be compiled with `g++` or `clang++`; only the
@@ -10,55 +11,56 @@ library itself needs `nvcc`.
 ## Layout
 
 ```
-src/
-├── include/gravity/gravity.h   public API (the only header consumers include)
-├── cuda_check.h                internal: GRAVITY_CUDA_CHECK -> gravity::CudaError
-├── device_buffer.h             internal: RAII wrapper around cudaMalloc/cudaFree
-├── device.cpp                  device queries (CUDA runtime API only, built with g++)
-├── saxpy.cu                    example kernel + host wrappers (built with nvcc)
-└── Makefile
+gravity/
+├── CMakeLists.txt              top-level project: compiler settings, GPU target, options
+└── src/
+    ├── CMakeLists.txt          the `gravity` library target
+    ├── include/gravity/gravity.h   public API (the only header consumers include)
+    ├── cuda_check.h            internal: GRAVITY_CUDA_CHECK -> gravity::CudaError
+    ├── device_buffer.h         internal: RAII wrapper around cudaMalloc/cudaFree
+    ├── device.cpp              device queries (CUDA runtime API only, built with g++)
+    └── saxpy.cu                example kernel + host wrappers (built with nvcc)
 ```
 
-Build output goes to `../build/` (outside the source tree):
-
-```
-build/obj/            object files and dependency (.d) files
-build/lib/libgravity.a
-build/lib/libgravity.so
-```
+Build output goes into the build directory you choose (`build/` below). The
+library ends up in `build/lib/`.
 
 ## Requirements
 
-- CUDA Toolkit (tested with 13.2), with `nvcc` at `/usr/local/cuda/bin/nvcc` by default
+- CMake 3.22 or newer
+- CUDA Toolkit (tested with 13.2)
 - A C++17 host compiler (tested with g++ 11.4)
-- GNU make
 - An NVIDIA GPU and driver to run anything. Building does not need a GPU, but
-  you then have to set `GPU_ARCH` explicitly, because `native` needs a GPU.
+  you then have to set `CMAKE_CUDA_ARCHITECTURES` explicitly (see below).
 
 ## Building
 
-From this directory:
+Run these from the project root:
 
 ```sh
-make                 # static + shared, release build
-make static          # only libgravity.a
-make shared          # only libgravity.so
-make BUILD=debug     # -g -G -O0 (device-side debugging with cuda-gdb)
-make clean
+cmake -B build                          # configure (Release by default)
+cmake --build build -j                  # build the library and the tests
+ctest --test-dir build --output-on-failure    # run the tests
 ```
 
-From the project root, `make` builds the library and the tests, and `make test`
-also runs the tests.
+Other configurations each go in their own build directory:
 
-| Variable    | Default           | Meaning |
-|-------------|-------------------|---------|
-| `GPU_ARCH`  | `native`          | Passed as `nvcc -arch=...`. `native` targets the GPU in this machine. Use e.g. `sm_86` to build for a specific architecture, or to build on a machine with no GPU. |
-| `BUILD`     | `release`         | `release` (`-O3 -lineinfo`) or `debug` (`-g -G -O0`). Run `make clean` when switching, because both use the same object directory. |
-| `CUDA_PATH` | `/usr/local/cuda` | CUDA Toolkit root. |
-| `BUILD_DIR` | `../build`        | Where objects and libraries are written. |
+```sh
+cmake -B build-debug -DCMAKE_BUILD_TYPE=Debug     # -g -G -O0, for cuda-gdb
+cmake -B build-shared -DBUILD_SHARED_LIBS=ON      # libgravity.so instead of .a
+cmake -B build -DCMAKE_CUDA_ARCHITECTURES=86      # build for sm_86 specifically
+cmake --build build --target gravity              # build only the library
+```
 
-Header dependencies are tracked automatically, so editing a header rebuilds
-the objects that include it.
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `CMAKE_BUILD_TYPE` | `Release` | `Release` (`-O3`, plus `-lineinfo` for profilers) or `Debug` (`-g -G`). |
+| `CMAKE_CUDA_ARCHITECTURES` | the GPU in this machine | Which GPU architectures to compile for, e.g. `86` or `"75;86;89"`. Set it when building for other machines or on a machine with no GPU. |
+| `BUILD_SHARED_LIBS` | `OFF` | `ON` builds `libgravity.so` instead of `libgravity.a`. |
+| `GRAVITY_BUILD_TESTS` | `ON` when this is the top-level project | Build `tests/`. It is off when another project includes gravity with `add_subdirectory`. |
+
+CMake also writes `build/compile_commands.json`. clangd and the VS Code C/C++
+extension can use it for code completion and navigation.
 
 ## Using the library
 
@@ -72,7 +74,16 @@ int main() {
 }
 ```
 
-Link against the **static** library. It needs the CUDA runtime on the link
+**From another CMake project.** Add gravity as a subdirectory and link the
+`gravity::gravity` target. This sets the include path and the CUDA runtime
+for you, and the consuming project does not need to enable CUDA itself:
+
+```cmake
+add_subdirectory(path/to/gravity gravity)
+target_link_libraries(my_app PRIVATE gravity::gravity)
+```
+
+**By hand, with the static library.** The CUDA runtime must be on the link
 line:
 
 ```sh
@@ -80,12 +91,12 @@ g++ -std=c++17 app.cpp -I<project>/src/include <project>/build/lib/libgravity.a 
     -L/usr/local/cuda/lib64 -Wl,-rpath,/usr/local/cuda/lib64 -lcudart
 ```
 
-Link against the **shared** library. The CUDA runtime is already built into
-`libgravity.so`, so `-lcudart` is not needed:
+**By hand, with the shared library** (built with `-DBUILD_SHARED_LIBS=ON`).
+`libgravity.so` loads the CUDA runtime itself, so `-lcudart` is not needed:
 
 ```sh
-g++ -std=c++17 app.cpp -I<project>/src/include -L<project>/build/lib \
-    -Wl,-rpath,<project>/build/lib -lgravity
+g++ -std=c++17 app.cpp -I<project>/src/include -L<project>/build-shared/lib \
+    -Wl,-rpath,<project>/build-shared/lib -lgravity
 ```
 
 ## API summary
@@ -103,9 +114,9 @@ comments.
 
 ## Adding code
 
-- **New source file:** put a `.cu` file (kernels, built with `nvcc`) or a
-  `.cpp` file (host-only code, built with `g++`) in this directory. The
-  Makefile picks it up automatically.
+- **New source file:** add a `.cu` file (kernels, built with `nvcc`) or a
+  `.cpp` file (host-only code, built with `g++`) to the `add_library(gravity
+  ...)` list in [CMakeLists.txt](CMakeLists.txt).
 - **Public declarations** go in `include/gravity/gravity.h`, or in a new
   header under `include/gravity/`. Keep public headers free of CUDA types such
   as `cudaStream_t` or `float3`, so that consumers can keep using a plain C++
@@ -118,7 +129,11 @@ comments.
   during execution). See `saxpy.cu`.
 - **Device memory** in host wrappers: use `detail::DeviceBuffer<T>` so that
   memory is freed when an exception is thrown.
-- Kernels are compiled without relocatable device code (`-rdc`), so a
-  `__device__` function must be defined in the same `.cu` file that calls it,
-  or in a header that file includes. If you need device code shared across
-  files, add `-rdc=true` and a device-link step to the Makefile.
+- **Device code across files:** kernels are compiled without relocatable
+  device code, so a `__device__` function must be defined in the same `.cu`
+  file that calls it, or in a header that file includes. If you need device
+  code shared across files, add
+  `set_target_properties(gravity PROPERTIES CUDA_SEPARABLE_COMPILATION ON)`
+  to [CMakeLists.txt](CMakeLists.txt).
+- **Compiler flags** shared by the library and the tests (warnings, `-G`,
+  `-lineinfo`) are set in the top-level `CMakeLists.txt`.

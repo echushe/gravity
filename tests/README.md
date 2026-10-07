@@ -1,63 +1,58 @@
 # libgravity tests
 
 Each `test_*.cpp` or `test_*.cu` file in this directory builds into its own
-standalone executable, which you can run directly. There is no test framework
-to install: everything needed is in `test_common.h`.
+standalone executable, and is registered as a CTest test. You can run the
+tests through `ctest` or run any executable directly. There is no test
+framework to install: everything needed is in `test_common.h`.
 
 ## Layout
 
 ```
 tests/
+├── CMakeLists.txt     one executable + one CTest test per test_* file
 ├── test_common.h      CHECK / CHECK_NEAR / CHECK_THROWS macros and test::run()
 ├── test_device.cpp    device enumeration, DeviceInfo fields, CudaError on bad ids
-├── test_saxpy.cu      saxpy() and saxpy_device() against a CPU reference
-└── Makefile
+└── test_saxpy.cu      saxpy() and saxpy_device() against a CPU reference
 ```
 
-Executables are written to `../build/tests/`.
+Executables are written to `build/tests/`.
 
 ## Building and running
 
-From this directory:
+Run these from the project root:
 
 ```sh
-make                    # build every test (builds ../src's libgravity.a first if needed)
-make run                # build and run every test, then print a summary
-make run-test_saxpy     # build and run one test
-make test_saxpy         # build one test without running it
-make clean              # remove the test binaries (the library is left alone)
+cmake -B build                                  # configure (once)
+cmake --build build -j                          # build the library and all tests
+ctest --test-dir build --output-on-failure      # run all tests
+ctest --test-dir build -R saxpy -V              # run tests matching a pattern, with full output
+cmake --build build --target test_saxpy         # build one test
+./build/tests/test_saxpy                        # run one test directly
 ```
 
-You can also run a built test directly:
+`ctest` exits non-zero if any test fails, so you can use it in CI.
+`--output-on-failure` prints a failing test's output; `-V` prints the output
+of every test.
+
+To run the tests against a debug or shared build, configure a separate build
+directory (see [../src/README.md](../src/README.md)):
 
 ```sh
-../build/tests/test_saxpy
+cmake -B build-debug -DCMAKE_BUILD_TYPE=Debug && cmake --build build-debug -j
+ctest --test-dir build-debug --output-on-failure
 ```
 
-From the project root, `make test` does the same as `make run`.
-
-`make run` output looks like this:
+Running a test directly prints output like this:
 
 ```
-== test_device
+$ ./build/tests/test_device
   device 0: NVIDIA RTX A2000 8GB Laptop GPU, sm_86, 20 SMs, 7.7 GiB
 [PASS] test_device
-== test_saxpy
-[PASS] test_saxpy
-----
-2 passed, 0 failed
 ```
-
-The variables `GPU_ARCH`, `BUILD` and `CUDA_PATH` work the same way as for
-the library (see [../src/README.md](../src/README.md)), and the Makefile
-passes them on to the library build. For example, `make run BUILD=debug`
-builds the library and the tests with debug info. Run `make clean` in both
-directories when you switch.
 
 ## Test conventions
 
 - **Exit status:** 0 means pass or skip; 1 means at least one check failed.
-  `make run` exits non-zero if any test failed, so it can be used in CI.
 - **No GPU:** if no CUDA device is visible, a test prints `[SKIP]` and exits 0.
 - **Checks don't abort.** `CHECK(cond)`, `CHECK_NEAR(actual, expected, tol)`
   and `CHECK_THROWS(expr, Type)` print the file, line and expression of a
@@ -69,8 +64,9 @@ directories when you switch.
 ## Adding a test
 
 1. Create `test_<name>.cpp` if the test uses only the public `gravity` API.
-   Create `test_<name>.cu` if it also needs to call CUDA directly or define
-   kernels; it is then built and linked with `nvcc`.
+   Create `test_<name>.cu` if it defines kernels; it is then compiled with
+   `nvcc`. Either kind can call the CUDA runtime (`cudaMalloc` and so on),
+   because every test links `CUDA::cudart`.
 2. Write it like this:
 
    ```cpp
@@ -84,8 +80,8 @@ directories when you switch.
    }
    ```
 
-3. Run `make run`. The Makefile finds new `test_*` files automatically.
+3. Run `cmake --build build` and then `ctest --test-dir build`. New `test_*`
+   files are picked up automatically, without re-running `cmake -B build`.
 
-`.cpp` tests are compiled with `g++` and linked against `libgravity.a` and
-`-lcudart`. Building them that way also checks that the public header still
-compiles without CUDA headers.
+`.cpp` tests are compiled with `g++`. Building them that way also checks that
+the public header still compiles without CUDA headers.
