@@ -58,24 +58,42 @@ void saxpy_device(float a, const float* d_x, float* d_y, std::size_t n);
 // n: number of bodies.
 void calculate_gravity(const float* masses,
                        const float* positions,
+                       const float G,
                        float* accelerations,
                        std::size_t n);
 
 void calculate_gravity_device(const float* d_masses,
                               const float* d_positions,
                               float* d_accelerations,
+                              const float G,
                               std::size_t n);
 
-void calculate_velocity(const float* positions,
-                        const float* velocities,
+void calculate_velocity(const float* velocities,
                         const float* accelerations,
                         float* new_velocities,
+                        const float T,
                         std::size_t n);
 
-void calculate_velocity_device(const float* d_positions,
-                               const float* d_velocities,
+void calculate_velocity_device(const float* d_velocities,
                                const float* d_accelerations,
                                float* d_new_velocities,
+                               const float T,
                                std::size_t n);
+
+void calculate_velocity_and_position(const float* positions,
+                                     const float* velocities,
+                                     const float* accelerations,
+                                     float* new_positions,
+                                     float* new_velocities,
+                                     const float T,
+                                     std::size_t n);
+
+void calculate_velocity_and_position_device(const float* d_positions,
+                                            const float* d_velocities,
+                                            const float* d_accelerations,
+                                            float* d_new_positions,
+                                            float* d_new_velocities,
+                                            const float T,
+                                            std::size_t n);
 
 }  // namespace gravity

@@ -174,6 +174,29 @@ __global__ void calculate_velocity_kernel_1D(const float* __restrict__ velocitie
     }
 }
 
+
+__global__ void calculate_velocity_and_position_kernel_1D(const float* __restrict__ positions,
+                                                          const float* __restrict__ velocities,
+                                                          const float* __restrict__ accelerations,
+                                                          float* __restrict__ new_positions,
+                                                          float* __restrict__ new_velocities,
+                                                          const float T,
+                                                          std::size_t n)
+{
+    const std::size_t idx = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    const std::size_t stride = static_cast<std::size_t>(blockDim.x) * gridDim.x;
+    for (std::size_t i = idx; i < n; i += stride)
+    {
+        new_positions[3 * i] = positions[3 * i] + T * velocities[3 * i] + 0.5f * T * T * accelerations[3 * i];
+        new_positions[3 * i + 1] = positions[3 * i + 1] + T * velocities[3 * i + 1] + 0.5f * T * T * accelerations[3 * i + 1];
+        new_positions[3 * i + 2] = positions[3 * i + 2] + T * velocities[3 * i + 2] + 0.5f * T * T * accelerations[3 * i + 2];
+
+        new_velocities[3 * i] = velocities[3 * i] + T * accelerations[3 * i];
+        new_velocities[3 * i + 1] = velocities[3 * i + 1] + T * accelerations[3 * i + 1];
+        new_velocities[3 * i + 2] = velocities[3 * i + 2] + T * accelerations[3 * i + 2];
+    }
+}
+
 }  // namespace gravity
 
 void saxpy_device(float a, const float* d_x, float* d_y, std::size_t n)
@@ -259,6 +282,45 @@ void calculate_velocity(const float* velocities,
     d_velocities.copy_from_host(velocities);
     d_accelerations.copy_from_host(accelerations);
     calculate_velocity_device(d_velocities.get(), d_accelerations.get(), d_new_velocities.get(), n, T);
+    d_new_velocities.copy_to_host(new_velocities);
+}
+
+void calculate_velocity_and_position_device(const float* d_positions,
+                                            const float* d_velocities,
+                                            const float* d_accelerations,
+                                            float* d_new_positions,
+                                            float* d_new_velocities,
+                                            const float T,
+                                            std::size_t n)
+{
+    if (n == 0) return;
+    calculate_velocity_and_position_kernel_1D<<<
+        std::min<std::size_t>((n + kBlockSize - 1) / kBlockSize, kMaxBlocks), kBlockSize>>>(
+        d_positions, d_velocities, d_accelerations, d_new_positions, d_new_velocities, T, n);
+    GRAVITY_CUDA_CHECK(cudaGetLastError());
+    GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
+}
+
+void calculate_velocity_and_position(const float* positions,
+                                     const float* velocities,
+                                     const float* accelerations,
+                                     float* new_positions,
+                                     float* new_velocities,
+                                     const float T,
+                                     std::size_t n)
+{
+    if (n == 0) return;
+    detail::DeviceBuffer<float> d_positions(3 * n);
+    detail::DeviceBuffer<float> d_velocities(3 * n);
+    detail::DeviceBuffer<float> d_accelerations(3 * n);
+    detail::DeviceBuffer<float> d_new_positions(3 * n);
+    detail::DeviceBuffer<float> d_new_velocities(3 * n);
+    d_positions.copy_from_host(positions);
+    d_velocities.copy_from_host(velocities);
+    d_accelerations.copy_from_host(accelerations);
+    calculate_velocity_and_position_device(d_positions.get(), d_velocities.get(), d_accelerations.get(),
+                                           d_new_positions.get(), d_new_velocities.get(), T, n);
+    d_new_positions.copy_to_host(new_positions);
     d_new_velocities.copy_to_host(new_velocities);
 }
 
