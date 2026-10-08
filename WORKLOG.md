@@ -162,15 +162,37 @@ obvious changes. Open follow-ups are collected at the end.
     (current), 0 bodies out with either.
   k_ε = 0.05 and k_T = 0.1 were kept: good accuracy with a proper integrator,
   and the same simulation speed on screen as before.
+- Commits: `a1f0214`, plus `5a682ef` for the user's change that skips
+  `i == j` in `calculate_gravity_kernel_2D`.
+
+### 12. Switched `Simulation::step()` to a leapfrog integrator
+
+- New `leapfrog_step()` and `leapfrog_step_device()` in `gravity.h`: one
+  kick-drift-kick (velocity Verlet) step in place, `v += ½·a·T`, `x += v·T`,
+  `a` = gravity at the new `x`, `v += ½·a·T`. Two small kernels (kick-drift,
+  kick) around the existing gravity kernel, so still one gravity calculation
+  per step.
+- `Simulation` stores the accelerations again (`accelerations_`). The first
+  `step()` computes them with `calculate_gravity`, so constructing a
+  `Simulation` still needs no GPU. `step()` works on copies and only then
+  replaces the state, so a CUDA error leaves the simulation unchanged.
+- `calculate_gravity_velocity_and_position` and
+  `calculate_velocity_and_position` are unchanged and documented as first
+  order; nothing in the project uses them any more.
+- New `tests/test_leapfrog.cpp` (GPU): one step against a CPU reference; a
+  two-body circular orbit over two orbits (energy within 4e-10, separation
+  within 2e-5); `Simulation::step()` identical to calling `leapfrog_step()` by
+  hand; a 500-object cold collapse with the default ε and T (energy within
+  0.09%).
+- Results for the demo's setup (5,000 objects, 1.5 free-fall times): energy
+  error 0.5% instead of 98%. `step()` still takes about 9 ms, and the demo
+  still runs at 60 fps.
 
 ## Open follow-ups
 
-- **Integrator.** Switch `step()` to leapfrog / velocity Verlet: half kick
-  `v += ½·a·T`, drift `x += v·T`, new accelerations, half kick. It needs the
-  accelerations kept between steps (one force calculation per step, as now)
-  and cuts the energy error from ~100% to ~0.4% in the demo's collapse.
-- **Tests.** `Simulation::step()` and the GPU compute functions in
-  `gravity.h` have no tests.
+- **Tests.** `calculate_velocity`, `calculate_velocity_and_position`, their
+  `_device` versions and `calculate_gravity_velocity_and_position` have no
+  tests.
 - **FP64 speed.** If large object counts matter more than the last digits,
   consider a compile-time choice of precision (a `using real = double;` alias
   in one header), since FP64 is 1/64 rate on this GPU.

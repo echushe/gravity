@@ -104,4 +104,33 @@ void calculate_gravity_velocity_and_position(const double* masses,
                                              const double T,
                                              std::size_t n);
 
+// One leapfrog (kick-drift-kick, also called velocity Verlet) step of T
+// seconds, in place:
+//   v += a*T/2;  x += v*T;  a = gravity at the new x;  v += a*T/2.
+// accelerations must hold the accelerations at the current positions (from
+// calculate_gravity with the same G and epsilon) and are replaced by those at
+// the new positions, ready for the next step. One gravity calculation per
+// step. Unlike calculate_gravity_velocity_and_position, which updates
+// velocities with the old acceleration only, this is second order and
+// symplectic: the energy error stays bounded instead of growing every step.
+// All arrays are host memory; masses has length n, the others 3*n.
+void leapfrog_step(const double* masses,
+                   double* positions,
+                   double* velocities,
+                   double* accelerations,
+                   const double G,
+                   const double epsilon,
+                   const double T,
+                   std::size_t n);
+
+// The same step on arrays that are already in device memory.
+void leapfrog_step_device(const double* d_masses,
+                          double* d_positions,
+                          double* d_velocities,
+                          double* d_accelerations,
+                          const double G,
+                          const double epsilon,
+                          const double T,
+                          std::size_t n);
+
 }  // namespace gravity

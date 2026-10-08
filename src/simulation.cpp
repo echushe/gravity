@@ -1,4 +1,5 @@
-// Simulation setup. Plain C++: no CUDA in this file.
+// Simulation setup and time stepping. Plain C++: no CUDA in this file; GPU
+// work goes through the functions in gravity.h.
 #include "gravity/simulation.h"
 
 #include "gravity/gravity.h"
@@ -7,6 +8,7 @@
 #include <cmath>
 #include <random>
 #include <stdexcept>
+#include <utility>
 
 namespace gravity
 {
@@ -37,7 +39,8 @@ Simulation::Simulation(double cube_size,
     : cube_size_(cube_size),
       masses_(num_objects),
       positions_(num_objects),
-      velocities_(num_objects)
+      velocities_(num_objects),
+      accelerations_(num_objects)
 {
     // Written as !(x > 0) so that NaN is rejected as well.
     if (!(cube_size > 0.0)) throw std::invalid_argument("Simulation: cube_size must be > 0");
@@ -108,23 +111,37 @@ void Simulation::step(double time_step)
 {
     if (!(time_step > 0.0)) throw std::invalid_argument("Simulation::step: time_step must be > 0");
 
-    // Create temporary copies of the current positions and velocities to store the results of the gravity calculation.
+    // Work on copies, so that the state is unchanged if a CUDA call throws.
     auto new_positions = this->positions_;
     auto new_velocities = this->velocities_;
+    auto new_accelerations = this->accelerations_;
+    const std::size_t n = this->masses_.size();
 
-    calculate_gravity_velocity_and_position(this->masses_.data(),
-                                            this->positions_.data(),
-                                            this->velocities_.data(),
-                                            new_positions.data(),
-                                            new_velocities.data(),
-                                            kGravitationalConstant,
-                                            this->softening_,
-                                            time_step,
-                                            this->masses_.size());
-    
-    // Update the simulation state with the newly calculated positions and velocities.
-    this->positions_ = new_positions;
-    this->velocities_ = new_velocities;
+    // The leapfrog step needs the accelerations at the current positions.
+    // Later steps reuse the ones the previous step computed.
+    if (!this->has_accelerations_)
+    {
+        calculate_gravity(this->masses_.data(),
+                          new_positions.data(),
+                          new_accelerations.data(),
+                          kGravitationalConstant,
+                          this->softening_,
+                          n);
+    }
+
+    leapfrog_step(this->masses_.data(),
+                  new_positions.data(),
+                  new_velocities.data(),
+                  new_accelerations.data(),
+                  kGravitationalConstant,
+                  this->softening_,
+                  time_step,
+                  n);
+
+    this->positions_ = std::move(new_positions);
+    this->velocities_ = std::move(new_velocities);
+    this->accelerations_ = std::move(new_accelerations);
+    this->has_accelerations_ = true;
 }
 
 }  // namespace gravity

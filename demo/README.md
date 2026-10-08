@@ -121,7 +121,8 @@ second, so `-framerate 12` plays back at real speed and 24 at twice that.
 
 Each iteration of the `while` loop in `run()`:
 
-1. calls `simulation.step()` (skipped while paused),
+1. calls `simulation.step()`, one leapfrog step on the GPU (skipped while
+   paused),
 2. copies `simulation.positions()` into the vertex buffer with
    `glBufferSubData`; `PositionData` is already in the vertex layout
    (`x0, y0, z0, x1, ...`). The buffer holds `double`s (`GL_DOUBLE`), and
@@ -159,13 +160,6 @@ the GPU the bottleneck.
   `gl_PointCoord` at (0, 0), so every fragment was discarded and nothing but
   the cube was visible. At 3 px a square looks the same as a disc. For larger
   round points, compare `gl_FragCoord` with the point's centre instead.
-- **Energy drift.** Since the softening and time step are derived from the
-  setup, objects are no longer thrown out of the cube. But `step()`
-  integrates with `v += a·T` using only the old acceleration, which is first
-  order and slowly adds energy: about 100% of the initial energy by 1.5
-  free-fall times for the default settings. A leapfrog (kick-drift-kick)
-  integrator keeps this to about 0.4% at the same cost per step (see the
-  follow-ups in [../WORKLOG.md](../WORKLOG.md)).
 - **Copies every frame.** `step()` copies the whole state to the GPU and back,
   `positions()` returns a copy, and the demo uploads the positions to OpenGL
   again. This is fine for thousands of objects. If it becomes a bottleneck,

@@ -196,6 +196,41 @@ __global__ void calculate_velocity_and_position_kernel_1D(const double* __restri
     }
 }
 
+// Leapfrog, first half, in place: half kick v += a*T/2, then drift x += v*T.
+__global__ void leapfrog_kick_drift_kernel_1D(double* __restrict__ positions,
+                                              double* __restrict__ velocities,
+                                              const double* __restrict__ accelerations,
+                                              const double T,
+                                              std::size_t n)
+{
+    const std::size_t idx = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    const std::size_t stride = static_cast<std::size_t>(blockDim.x) * gridDim.x;
+    for (std::size_t i = idx; i < n; i += stride)
+    {
+        for (int k = 0; k < 3; ++k)
+        {
+            const double v = velocities[3 * i + k] + 0.5 * T * accelerations[3 * i + k];
+            velocities[3 * i + k] = v;
+            positions[3 * i + k] += T * v;
+        }
+    }
+}
+
+// Leapfrog, second half, in place: half kick v += a*T/2 with the
+// accelerations at the new positions.
+__global__ void leapfrog_kick_kernel_1D(double* __restrict__ velocities,
+                                        const double* __restrict__ accelerations,
+                                        const double T,
+                                        std::size_t n)
+{
+    const std::size_t idx = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    const std::size_t stride = static_cast<std::size_t>(blockDim.x) * gridDim.x;
+    for (std::size_t i = idx; i < n; i += stride)
+    {
+        for (int k = 0; k < 3; ++k) velocities[3 * i + k] += 0.5 * T * accelerations[3 * i + k];
+    }
+}
+
 }  // namespace gravity
 
 void calculate_gravity_device(const double* d_masses,
@@ -335,6 +370,52 @@ void calculate_gravity_velocity_and_position(const double* masses,
 
     d_new_positions.copy_to_host(new_positions);
     d_new_velocities.copy_to_host(new_velocities);
+}
+
+void leapfrog_step_device(const double* d_masses,
+                          double* d_positions,
+                          double* d_velocities,
+                          double* d_accelerations,
+                          const double G,
+                          const double epsilon,
+                          const double T,
+                          std::size_t n)
+{
+    if (n == 0) return;
+    const std::size_t blocks = std::min<std::size_t>((n + kBlockSize - 1) / kBlockSize, kMaxBlocks);
+    leapfrog_kick_drift_kernel_1D<<<blocks, kBlockSize>>>(d_positions, d_velocities, d_accelerations, T, n);
+    GRAVITY_CUDA_CHECK(cudaGetLastError());
+    calculate_gravity_device(d_masses, d_positions, d_accelerations, G, epsilon, n);  // synchronizes
+    leapfrog_kick_kernel_1D<<<blocks, kBlockSize>>>(d_velocities, d_accelerations, T, n);
+    GRAVITY_CUDA_CHECK(cudaGetLastError());
+    GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
+}
+
+void leapfrog_step(const double* masses,
+                   double* positions,
+                   double* velocities,
+                   double* accelerations,
+                   const double G,
+                   const double epsilon,
+                   const double T,
+                   std::size_t n)
+{
+    if (n == 0) return;
+    detail::DeviceBuffer<double> d_masses(n);
+    detail::DeviceBuffer<double> d_positions(3 * n);
+    detail::DeviceBuffer<double> d_velocities(3 * n);
+    detail::DeviceBuffer<double> d_accelerations(3 * n);
+    d_masses.copy_from_host(masses);
+    d_positions.copy_from_host(positions);
+    d_velocities.copy_from_host(velocities);
+    d_accelerations.copy_from_host(accelerations);
+
+    leapfrog_step_device(d_masses.get(), d_positions.get(), d_velocities.get(), d_accelerations.get(),
+                         G, epsilon, T, n);
+
+    d_positions.copy_to_host(positions);
+    d_velocities.copy_to_host(velocities);
+    d_accelerations.copy_to_host(accelerations);
 }
 
 }  // namespace gravity

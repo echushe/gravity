@@ -57,7 +57,10 @@ public:
                std::uint64_t seed);
 
 public:
-    // Advances the simulation by time_step() seconds.
+    // Advances the simulation by time_step() seconds, with one leapfrog
+    // (kick-drift-kick) step on the GPU; see leapfrog_step() in gravity.h.
+    // The first call also computes the starting accelerations, so that
+    // constructing a Simulation needs no GPU.
     void step();
     // Advances the simulation by the given time step instead, with the same
     // softening. Throws std::invalid_argument unless time_step > 0.
@@ -79,6 +82,10 @@ private:
     MassData masses_;
     PositionData positions_;
     VelocityData velocities_;
+    // Accelerations at positions_, kept between steps for the leapfrog
+    // integrator. Only valid once has_accelerations_ is true.
+    AccelerationData accelerations_;
+    bool has_accelerations_ = false;
 };
 
 }  // namespace gravity

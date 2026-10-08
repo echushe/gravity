@@ -12,13 +12,18 @@ tests/
 ├── CMakeLists.txt     one executable + one CTest test per test_* file
 ├── test_common.h      CHECK / CHECK_NEAR / CHECK_THROWS macros and test::run()
 ├── test_device.cpp    device enumeration, DeviceInfo fields, CudaError on bad ids
-└── test_simulation.cpp  data classes and Simulation construction (CPU only)
+├── test_leapfrog.cpp  leapfrog_step vs a CPU reference, energy conservation
+│                      (circular orbit, cold collapse), Simulation::step()
+└── test_simulation.cpp  data classes, Simulation construction, softening and
+                       time step (CPU only)
 ```
 
 Executables are written to `build/tests/`.
 
-Not covered yet: `Simulation::step()` and the GPU compute functions in
-`gravity.h` (`calculate_gravity` and the rest) have no tests.
+Not covered yet: the other GPU compute functions in `gravity.h`
+(`calculate_velocity`, `calculate_velocity_and_position` and their `_device`
+versions, `calculate_gravity_velocity_and_position`) have no tests.
+`calculate_gravity` is tested indirectly through `test_leapfrog`.
 
 ## Building and running
 
