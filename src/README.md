@@ -84,8 +84,8 @@ extension can use it for code completion and navigation.
 
 int main() {
     // 1000 objects in a 100 m cube, masses drawn from N(2e10, 4e9) kg.
-    gravity::Simulation sim(100.0f, 1000, 2.0e10f, 4.0e9f);
-    for (int i = 0; i < 100; ++i) sim.step(0.01f);  // 1 simulated second, on the GPU
+    gravity::Simulation sim(100.0, 1000, 2.0e10, 4.0e9);
+    for (int i = 0; i < 100; ++i) sim.step(0.01);  // 1 simulated second, on the GPU
     const gravity::PositionData p = sim.positions();
     std::printf("object 0 is at (%g, %g, %g) m\n", p.x(0), p.y(0), p.z(0));
 }
@@ -93,6 +93,12 @@ int main() {
 
 Units are SI: `step()` uses the real gravitational constant, so masses must be
 large (around 1e10 kg in a 100 m cube) for any visible motion.
+
+All floating-point values in the library are `double`, on the CPU and in the
+CUDA kernels. Consumer and laptop NVIDIA GPUs run FP64 far slower than FP32
+(1/64 of the rate on the RTX A2000 this was developed on): one `step()` takes
+about 9 ms for 5,000 objects and 125 ms for 20,000, against 1.5 ms and 7 ms
+when the library used `float`.
 
 **From another CMake project.** Add gravity as a subdirectory and link the
 `gravity::gravity` target. This sets the include path and the CUDA runtime
@@ -129,12 +135,12 @@ comments.
 | `int device_count()` | Number of visible CUDA devices. Returns 0 if there is no device or no usable driver; it never throws. |
 | `DeviceInfo device_info(int device = 0)` | Name, compute capability, SM count and memory size of a device. |
 | `class CudaError` | Thrown when any CUDA call fails. `what()` gives the file, line, failed call and CUDA error name; `code()` gives the `cudaError_t` value. |
-| `MassData`, `PositionData`, `VelocityData`, `AccelerationData` | Per-object state ([object_data.h](include/gravity/object_data.h)). `size()` is the number of objects. `data()` is a flat `float` array in the layout the GPU functions take: `m0, m1, ...` for masses and `x0, y0, z0, x1, ...` for the 3D quantities. |
+| `MassData`, `PositionData`, `VelocityData`, `AccelerationData` | Per-object state ([object_data.h](include/gravity/object_data.h)). `size()` is the number of objects. `data()` is a flat `double` array in the layout the GPU functions take: `m0, m1, ...` for masses and `x0, y0, z0, x1, ...` for the 3D quantities. |
 | `Simulation(L, n, mass_mean, mass_stddev[, seed])` | `n` objects in a cube of side `L` ([simulation.h](include/gravity/simulation.h)): masses from a normal distribution (redrawn until positive), positions uniform in `[0, L)`, zero velocities. Pass `seed` for a reproducible setup. Uses no CUDA directly. |
 | `Simulation::step(T)` | Advances the simulation by `T` seconds on the GPU, with G = 6.6743e-11 (SI units): computes every acceleration `a`, then `x += v·T + ½·a·T²` and `v += a·T`. Each call copies masses, positions and velocities to the GPU and the results back. Throws `std::invalid_argument` unless `T > 0`. |
 | `Simulation::positions()`, `velocities()`, `masses()` | Copies of the current state, in the `data()` layout above. |
 | `calculate_gravity`, `calculate_velocity`, `calculate_velocity_and_position`, `calculate_gravity_velocity_and_position` | GPU compute functions that take host arrays. Each call allocates device memory, copies the inputs over, runs the kernels and copies the results back. Gravity adds 1e-10 m² to every squared distance (softening). |
-| `calculate_gravity_device`, `calculate_velocity_device`, `calculate_velocity_and_position_device` | The same computations on arrays that are already in device memory: no allocation, no copies. Note that `calculate_gravity` takes `G` before the output array, while `calculate_gravity_device` takes it after. |
+| `calculate_gravity_device`, `calculate_velocity_device`, `calculate_velocity_and_position_device` | The same computations on arrays that are already in device memory: no allocation, no copies. Each takes its arguments in the same order as its host-array counterpart. |
 
 ## Adding code
 

@@ -25,24 +25,24 @@ public:
     // mass_stddev >= 0.
     //
     // This overload uses a random seed, so every run is different.
-    Simulation(float cube_size, std::size_t num_objects, float mass_mean, float mass_stddev);
+    Simulation(double cube_size, std::size_t num_objects, double mass_mean, double mass_stddev);
 
     // Same, but with a fixed seed: equal seeds give identical initial states.
-    Simulation(float cube_size,
+    Simulation(double cube_size,
                std::size_t num_objects,
-               float mass_mean,
-               float mass_stddev,
+               double mass_mean,
+               double mass_stddev,
                std::uint64_t seed);
 
 public:
     // Advances the simulation by the given time step.
-    void step(float time_step);
+    void step(double time_step);
     PositionData positions() const { return this->positions_; }
     VelocityData velocities() const { return this->velocities_; }
     MassData masses() const { return this->masses_; }
 
 private:
-    float cube_size_;
+    double cube_size_;
     MassData masses_;
     PositionData positions_;
     VelocityData velocities_;

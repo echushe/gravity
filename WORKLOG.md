@@ -11,9 +11,12 @@ obvious changes. Open follow-ups are collected at the end.
   without including the header that declares it. Added
   `#include "gravity/gravity.h"`.
 - In `src/nbody_kernels.cu`, `calculate_gravity_velocity_and_position` called
-  `calculate_gravity` (the host-array version, which takes `G` before the
-  output array) with device pointers and in the wrong argument order. Changed
-  it to `calculate_gravity_device`.
+  `calculate_gravity`, the host-array version, with device pointers: it would
+  have copied "host" arrays that were really device memory. Changed it to
+  `calculate_gravity_device`. (At the time this was described as a wrong
+  argument order that would not compile. That was wrong: the call matched the
+  definition in the `.cu` file. It was the header's declaration that had a
+  different order, as found in item 10.)
 - Verified: the whole project builds and both tests pass.
 - Commits: `2deb9d5`, `03dd7e2`.
 
@@ -100,6 +103,30 @@ obvious changes. Open follow-ups are collected at the end.
   (log, snapshots, video), how the main loop works, known issues.
 - `WORKLOG.md` (this file).
 
+### 10. Converted all floating-point maths to double (CPU and GPU)
+
+- Library: `MassData` and the 3D data classes store `double`; `Simulation`
+  takes and draws `double`s (`normal_distribution<double>`,
+  `uniform_real_distribution<double>`); `step(double)`.
+- CUDA: every kernel and host wrapper uses `double`, `DeviceBuffer<double>`,
+  `rsqrt` instead of `rsqrtf`, and literals without the `f` suffix.
+- Found and fixed two public declarations in `gravity.h` that did not match
+  their definitions, so calling them as declared would have failed to link:
+  `calculate_gravity` (header had `G` before the output array) and
+  `calculate_velocity_device` (definition had `n` before `T`). Both now use
+  the same order as their host/device counterpart.
+- Tests: literals changed to `double`, and `static_assert`s check that every
+  data class stores `double`.
+- Demo: settings, simulated time, camera maths (`glm::dvec3`/`dmat4`) and
+  vertex buffers (`GL_DOUBLE`) are `double`. Only the drawing stays `float`
+  (GLSL 3.30 has no doubles; see "Precision" in `demo/README.md`).
+- Verified: everything builds without new warnings and both tests pass. A
+  separate program called all seven compute functions (all now link) and
+  matched a CPU double reference to 1e-14 or better. The demo still draws
+  every point (framebuffer check) and runs at 60 fps with 5,000 objects.
+- Cost: FP64 runs at 1/64 of the FP32 rate on the RTX A2000. `step()` went
+  from 1.5 to 9.2 ms for 5,000 objects and from 7.3 to 124 ms for 20,000.
+
 ## Open follow-ups
 
 - **Softening.** The gravity kernel adds only 1e-10 m² to each squared
@@ -108,9 +135,9 @@ obvious changes. Open follow-ups are collected at the end.
   the demo's settings).
 - **Tests.** `Simulation::step()` and the GPU compute functions in
   `gravity.h` have no tests.
-- **Argument order.** `calculate_gravity` takes `G` before the output array,
-  `calculate_gravity_device` after it. This caused the bug in item 1;
-  consider making them consistent.
+- **FP64 speed.** If large object counts matter more than the last digits,
+  consider a compile-time choice of precision (a `using real = double;` alias
+  in one header), since FP64 is 1/64 rate on this GPU.
 - **Copies.** `positions()`, `velocities()` and `masses()` return copies, and
   `step()` copies the whole state to the GPU and back on every call. Returning
   `const&`, and later keeping the state on the GPU with CUDA–OpenGL interop,

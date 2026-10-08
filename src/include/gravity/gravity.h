@@ -46,54 +46,56 @@ DeviceInfo device_info(int device = 0);
 // masses: array of body masses of length n.
 // positions: array of body positions of length 3*n (x, y, z for each body).
 // accelerations: output array of length 3*n.
+// G: gravitational constant.
 // n: number of bodies.
-void calculate_gravity(const float* masses,
-                       const float* positions,
-                       const float G,
-                       float* accelerations,
+// All arrays are host memory. Everything is computed in double precision.
+void calculate_gravity(const double* masses,
+                       const double* positions,
+                       double* accelerations,
+                       const double G,
                        std::size_t n);
 
-void calculate_gravity_device(const float* d_masses,
-                              const float* d_positions,
-                              float* d_accelerations,
-                              const float G,
+void calculate_gravity_device(const double* d_masses,
+                              const double* d_positions,
+                              double* d_accelerations,
+                              const double G,
                               std::size_t n);
 
-void calculate_velocity(const float* velocities,
-                        const float* accelerations,
-                        float* new_velocities,
-                        const float T,
+void calculate_velocity(const double* velocities,
+                        const double* accelerations,
+                        double* new_velocities,
+                        const double T,
                         std::size_t n);
 
-void calculate_velocity_device(const float* d_velocities,
-                               const float* d_accelerations,
-                               float* d_new_velocities,
-                               const float T,
+void calculate_velocity_device(const double* d_velocities,
+                               const double* d_accelerations,
+                               double* d_new_velocities,
+                               const double T,
                                std::size_t n);
 
-void calculate_velocity_and_position(const float* positions,
-                                     const float* velocities,
-                                     const float* accelerations,
-                                     float* new_positions,
-                                     float* new_velocities,
-                                     const float T,
+void calculate_velocity_and_position(const double* positions,
+                                     const double* velocities,
+                                     const double* accelerations,
+                                     double* new_positions,
+                                     double* new_velocities,
+                                     const double T,
                                      std::size_t n);
 
-void calculate_velocity_and_position_device(const float* d_positions,
-                                            const float* d_velocities,
-                                            const float* d_accelerations,
-                                            float* d_new_positions,
-                                            float* d_new_velocities,
-                                            const float T,
+void calculate_velocity_and_position_device(const double* d_positions,
+                                            const double* d_velocities,
+                                            const double* d_accelerations,
+                                            double* d_new_positions,
+                                            double* d_new_velocities,
+                                            const double T,
                                             std::size_t n);
 
-void calculate_gravity_velocity_and_position(const float* masses,
-                                             const float* positions,
-                                             const float* velocities,
-                                             float* new_positions,
-                                             float* new_velocities,
-                                             const float G,
-                                             const float T,
+void calculate_gravity_velocity_and_position(const double* masses,
+                                             const double* positions,
+                                             const double* velocities,
+                                             double* new_positions,
+                                             double* new_velocities,
+                                             const double G,
+                                             const double T,
                                              std::size_t n);
 
 }  // namespace gravity

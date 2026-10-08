@@ -15,8 +15,8 @@ namespace
 constexpr int kBlockSize = 256;
 constexpr std::size_t kMaxBlocks = 65535;
 
-__global__ void scale_1D(float a,
-                      float* __restrict__ y,
+__global__ void scale_1D(double a,
+                      double* __restrict__ y,
                       std::size_t n)
 {
     const std::size_t offset = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -28,36 +28,36 @@ __global__ void scale_1D(float a,
 }
 
 
-__global__ void calculate_gravity_kernel_1D(const float* __restrict__ masses,
-                                            const float* __restrict__ positions,
-                                            float* __restrict__ accelerations,
-                                            const float G,
+__global__ void calculate_gravity_kernel_1D(const double* __restrict__ masses,
+                                            const double* __restrict__ positions,
+                                            double* __restrict__ accelerations,
+                                            const double G,
                                             std::size_t n)
 {
     const std::size_t n_threads = static_cast<std::size_t>(blockDim.x) * gridDim.x;
     const std::size_t offset = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     for (std::size_t i = offset; i < n; i += n_threads)
     {
-        const float x_i = positions[3 * i];
-        const float y_i = positions[3 * i + 1];
-        const float z_i = positions[3 * i + 2];
-        float a_x = 0.0f;
-        float a_y = 0.0f;
-        float a_z = 0.0f;
+        const double x_i = positions[3 * i];
+        const double y_i = positions[3 * i + 1];
+        const double z_i = positions[3 * i + 2];
+        double a_x = 0.0;
+        double a_y = 0.0;
+        double a_z = 0.0;
         for (std::size_t j = 0; j < n; ++j)
         {
             if (i == j) continue;
-            const float m_j = masses[j];
-            const float x_j = positions[3 * j];
-            const float y_j = positions[3 * j + 1];
-            const float z_j = positions[3 * j + 2];
-            const float dx = x_j - x_i;
-            const float dy = y_j - y_i;
-            const float dz = z_j - z_i;
-            const float dist_sqr = dx * dx + dy * dy + dz * dz + 1e-10f;
-            const float inv_dist = rsqrtf(dist_sqr);
-            const float inv_dist3 = inv_dist * inv_dist * inv_dist;
-            const float f = m_j * inv_dist3;
+            const double m_j = masses[j];
+            const double x_j = positions[3 * j];
+            const double y_j = positions[3 * j + 1];
+            const double z_j = positions[3 * j + 2];
+            const double dx = x_j - x_i;
+            const double dy = y_j - y_i;
+            const double dz = z_j - z_i;
+            const double dist_sqr = dx * dx + dy * dy + dz * dz + 1e-10;
+            const double inv_dist = rsqrt(dist_sqr);
+            const double inv_dist3 = inv_dist * inv_dist * inv_dist;
+            const double f = m_j * inv_dist3;
             a_x += f * dx;
             a_y += f * dy;
             a_z += f * dz;
@@ -68,10 +68,10 @@ __global__ void calculate_gravity_kernel_1D(const float* __restrict__ masses,
     }
 }
 
-__global__ void calculate_gravity_kernel_2D(const float* __restrict__ masses,
-                                            const float* __restrict__ positions,
-                                            float* __restrict__ accelerations,
-                                            const float G,
+__global__ void calculate_gravity_kernel_2D(const double* __restrict__ masses,
+                                            const double* __restrict__ positions,
+                                            double* __restrict__ accelerations,
+                                            const double G,
                                             std::size_t n)
 {
     // The output accelerations will be a 2D array corresponding to the 2D grid of threads.
@@ -89,26 +89,26 @@ __global__ void calculate_gravity_kernel_2D(const float* __restrict__ masses,
         for (std::size_t j = offset_y; j < n; j += n_threads_y)
         {
             // Implementation for the 2D grid version would go here.
-            const float x_i = positions[3 * i];
-            const float y_i = positions[3 * i + 1];
-            const float z_i = positions[3 * i + 2];
+            const double x_i = positions[3 * i];
+            const double y_i = positions[3 * i + 1];
+            const double z_i = positions[3 * i + 2];
 
-            const float m_j = masses[j];
-            const float x_j = positions[3 * j];
-            const float y_j = positions[3 * j + 1];
-            const float z_j = positions[3 * j + 2];
+            const double m_j = masses[j];
+            const double x_j = positions[3 * j];
+            const double y_j = positions[3 * j + 1];
+            const double z_j = positions[3 * j + 2];
 
-            const float dx = x_j - x_i;
-            const float dy = y_j - y_i;
-            const float dz = z_j - z_i;
-            const float dist_sqr = dx * dx + dy * dy + dz * dz + 1e-10f;
-            const float inv_dist = rsqrtf(dist_sqr);
-            const float inv_dist3 = inv_dist * inv_dist * inv_dist;
-            const float f = m_j * inv_dist3;
+            const double dx = x_j - x_i;
+            const double dy = y_j - y_i;
+            const double dz = z_j - z_i;
+            const double dist_sqr = dx * dx + dy * dy + dz * dz + 1e-10;
+            const double inv_dist = rsqrt(dist_sqr);
+            const double inv_dist3 = inv_dist * inv_dist * inv_dist;
+            const double f = m_j * inv_dist3;
 
-            const float a_x = f * dx;
-            const float a_y = f * dy;
-            const float a_z = f * dz;
+            const double a_x = f * dx;
+            const double a_y = f * dy;
+            const double a_z = f * dz;
 
             const std::size_t acc_idx = i * n + j;
 
@@ -119,17 +119,17 @@ __global__ void calculate_gravity_kernel_2D(const float* __restrict__ masses,
     }
 }
 
-__global__ void accelerations_2D_to_1D(const float* __restrict__ accelerations_2D,
-                                       float* __restrict__ accelerations_1D,
+__global__ void accelerations_2D_to_1D(const double* __restrict__ accelerations_2D,
+                                       double* __restrict__ accelerations_1D,
                                        std::size_t n)
 {
     const std::size_t idx = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * gridDim.x;
     for (std::size_t i = idx; i < n; i += stride)
     {
-        float a_x = 0.0f;
-        float a_y = 0.0f;
-        float a_z = 0.0f;
+        double a_x = 0.0;
+        double a_y = 0.0;
+        double a_z = 0.0;
         for (std::size_t j = 0; j < n; ++j)
         {
             const std::size_t acc_2D_idx = i * n + j;
@@ -144,10 +144,10 @@ __global__ void accelerations_2D_to_1D(const float* __restrict__ accelerations_2
 }
 
 
-__global__ void calculate_velocity_kernel_1D(const float* __restrict__ velocities,
-                                             const float* __restrict__ accelerations,
-                                             float* __restrict__ new_velocities,
-                                             const float T,
+__global__ void calculate_velocity_kernel_1D(const double* __restrict__ velocities,
+                                             const double* __restrict__ accelerations,
+                                             double* __restrict__ new_velocities,
+                                             const double T,
                                              std::size_t n)
 {
     const std::size_t idx = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -161,21 +161,21 @@ __global__ void calculate_velocity_kernel_1D(const float* __restrict__ velocitie
 }
 
 
-__global__ void calculate_velocity_and_position_kernel_1D(const float* __restrict__ positions,
-                                                          const float* __restrict__ velocities,
-                                                          const float* __restrict__ accelerations,
-                                                          float* __restrict__ new_positions,
-                                                          float* __restrict__ new_velocities,
-                                                          const float T,
+__global__ void calculate_velocity_and_position_kernel_1D(const double* __restrict__ positions,
+                                                          const double* __restrict__ velocities,
+                                                          const double* __restrict__ accelerations,
+                                                          double* __restrict__ new_positions,
+                                                          double* __restrict__ new_velocities,
+                                                          const double T,
                                                           std::size_t n)
 {
     const std::size_t idx = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     const std::size_t stride = static_cast<std::size_t>(blockDim.x) * gridDim.x;
     for (std::size_t i = idx; i < n; i += stride)
     {
-        new_positions[3 * i] = positions[3 * i] + T * velocities[3 * i] + 0.5f * T * T * accelerations[3 * i];
-        new_positions[3 * i + 1] = positions[3 * i + 1] + T * velocities[3 * i + 1] + 0.5f * T * T * accelerations[3 * i + 1];
-        new_positions[3 * i + 2] = positions[3 * i + 2] + T * velocities[3 * i + 2] + 0.5f * T * T * accelerations[3 * i + 2];
+        new_positions[3 * i] = positions[3 * i] + T * velocities[3 * i] + 0.5 * T * T * accelerations[3 * i];
+        new_positions[3 * i + 1] = positions[3 * i + 1] + T * velocities[3 * i + 1] + 0.5 * T * T * accelerations[3 * i + 1];
+        new_positions[3 * i + 2] = positions[3 * i + 2] + T * velocities[3 * i + 2] + 0.5 * T * T * accelerations[3 * i + 2];
 
         new_velocities[3 * i] = velocities[3 * i] + T * accelerations[3 * i];
         new_velocities[3 * i + 1] = velocities[3 * i + 1] + T * accelerations[3 * i + 1];
@@ -185,10 +185,10 @@ __global__ void calculate_velocity_and_position_kernel_1D(const float* __restric
 
 }  // namespace gravity
 
-void calculate_gravity_device(const float* d_masses,
-                              const float* d_positions,
-                              float* d_accelerations,
-                              const float G,
+void calculate_gravity_device(const double* d_masses,
+                              const double* d_positions,
+                              double* d_accelerations,
+                              const double G,
                               std::size_t n)
 {
     if (n == 0) return;
@@ -199,16 +199,16 @@ void calculate_gravity_device(const float* d_masses,
     GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-void calculate_gravity(const float* masses,
-                       const float* positions,
-                       float* accelerations,
-                       const float G,
+void calculate_gravity(const double* masses,
+                       const double* positions,
+                       double* accelerations,
+                       const double G,
                        std::size_t n)
 {
     if (n == 0) return;
-    detail::DeviceBuffer<float> d_masses(n);
-    detail::DeviceBuffer<float> d_positions(3 * n);
-    detail::DeviceBuffer<float> d_accelerations(3 * n);
+    detail::DeviceBuffer<double> d_masses(n);
+    detail::DeviceBuffer<double> d_positions(3 * n);
+    detail::DeviceBuffer<double> d_accelerations(3 * n);
     d_masses.copy_from_host(masses);
     d_positions.copy_from_host(positions);
     // Assuming a kernel calculate_gravity_kernel_1D is defined elsewhere
@@ -220,11 +220,11 @@ void calculate_gravity(const float* masses,
     d_accelerations.copy_to_host(accelerations);
 }
 
-void calculate_velocity_device(const float* d_velocities,
-                               const float* d_accelerations,
-                               float* d_new_velocities,
-                               std::size_t n,
-                               const float T)
+void calculate_velocity_device(const double* d_velocities,
+                               const double* d_accelerations,
+                               double* d_new_velocities,
+                               const double T,
+                               std::size_t n)
 {
     if (n == 0) return;
     calculate_velocity_kernel_1D<<<
@@ -234,28 +234,28 @@ void calculate_velocity_device(const float* d_velocities,
     GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-void calculate_velocity(const float* velocities,
-                        const float* accelerations,
-                        float* new_velocities,
-                        const float T,
+void calculate_velocity(const double* velocities,
+                        const double* accelerations,
+                        double* new_velocities,
+                        const double T,
                         std::size_t n)
 {
     if (n == 0) return;
-    detail::DeviceBuffer<float> d_velocities(3 * n);
-    detail::DeviceBuffer<float> d_accelerations(3 * n);
-    detail::DeviceBuffer<float> d_new_velocities(3 * n);
+    detail::DeviceBuffer<double> d_velocities(3 * n);
+    detail::DeviceBuffer<double> d_accelerations(3 * n);
+    detail::DeviceBuffer<double> d_new_velocities(3 * n);
     d_velocities.copy_from_host(velocities);
     d_accelerations.copy_from_host(accelerations);
-    calculate_velocity_device(d_velocities.get(), d_accelerations.get(), d_new_velocities.get(), n, T);
+    calculate_velocity_device(d_velocities.get(), d_accelerations.get(), d_new_velocities.get(), T, n);
     d_new_velocities.copy_to_host(new_velocities);
 }
 
-void calculate_velocity_and_position_device(const float* d_positions,
-                                            const float* d_velocities,
-                                            const float* d_accelerations,
-                                            float* d_new_positions,
-                                            float* d_new_velocities,
-                                            const float T,
+void calculate_velocity_and_position_device(const double* d_positions,
+                                            const double* d_velocities,
+                                            const double* d_accelerations,
+                                            double* d_new_positions,
+                                            double* d_new_velocities,
+                                            const double T,
                                             std::size_t n)
 {
     if (n == 0) return;
@@ -266,20 +266,20 @@ void calculate_velocity_and_position_device(const float* d_positions,
     GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-void calculate_velocity_and_position(const float* positions,
-                                     const float* velocities,
-                                     const float* accelerations,
-                                     float* new_positions,
-                                     float* new_velocities,
-                                     const float T,
+void calculate_velocity_and_position(const double* positions,
+                                     const double* velocities,
+                                     const double* accelerations,
+                                     double* new_positions,
+                                     double* new_velocities,
+                                     const double T,
                                      std::size_t n)
 {
     if (n == 0) return;
-    detail::DeviceBuffer<float> d_positions(3 * n);
-    detail::DeviceBuffer<float> d_velocities(3 * n);
-    detail::DeviceBuffer<float> d_accelerations(3 * n);
-    detail::DeviceBuffer<float> d_new_positions(3 * n);
-    detail::DeviceBuffer<float> d_new_velocities(3 * n);
+    detail::DeviceBuffer<double> d_positions(3 * n);
+    detail::DeviceBuffer<double> d_velocities(3 * n);
+    detail::DeviceBuffer<double> d_accelerations(3 * n);
+    detail::DeviceBuffer<double> d_new_positions(3 * n);
+    detail::DeviceBuffer<double> d_new_velocities(3 * n);
     d_positions.copy_from_host(positions);
     d_velocities.copy_from_host(velocities);
     d_accelerations.copy_from_host(accelerations);
@@ -289,25 +289,25 @@ void calculate_velocity_and_position(const float* positions,
     d_new_velocities.copy_to_host(new_velocities);
 }
 
-void calculate_gravity_velocity_and_position(const float* masses,
-                                             const float* positions,
-                                             const float* velocities,
-                                             float* new_positions,
-                                             float* new_velocities,
-                                             const float G,
-                                             const float T,
+void calculate_gravity_velocity_and_position(const double* masses,
+                                             const double* positions,
+                                             const double* velocities,
+                                             double* new_positions,
+                                             double* new_velocities,
+                                             const double G,
+                                             const double T,
                                              std::size_t n)
 {
     if (n == 0) return;
     // values in
-    detail::DeviceBuffer<float> d_masses(n);
-    detail::DeviceBuffer<float> d_positions(3 * n);
-    detail::DeviceBuffer<float> d_velocities(3 * n);
+    detail::DeviceBuffer<double> d_masses(n);
+    detail::DeviceBuffer<double> d_positions(3 * n);
+    detail::DeviceBuffer<double> d_velocities(3 * n);
     // values tmp
-    detail::DeviceBuffer<float> d_accelerations(3 * n);
+    detail::DeviceBuffer<double> d_accelerations(3 * n);
     // values out
-    detail::DeviceBuffer<float> d_new_positions(3 * n);
-    detail::DeviceBuffer<float> d_new_velocities(3 * n);
+    detail::DeviceBuffer<double> d_new_positions(3 * n);
+    detail::DeviceBuffer<double> d_new_velocities(3 * n);
 
     d_masses.copy_from_host(masses);
     d_positions.copy_from_host(positions);

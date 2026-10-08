@@ -9,15 +9,15 @@
 namespace gravity
 {
 
-Simulation::Simulation(float cube_size, std::size_t num_objects, float mass_mean, float mass_stddev)
+Simulation::Simulation(double cube_size, std::size_t num_objects, double mass_mean, double mass_stddev)
     : Simulation(cube_size, num_objects, mass_mean, mass_stddev, std::random_device{}())
 {
 }
 
-Simulation::Simulation(float cube_size,
+Simulation::Simulation(double cube_size,
                        std::size_t num_objects,
-                       float mass_mean,
-                       float mass_stddev,
+                       double mass_mean,
+                       double mass_stddev,
                        std::uint64_t seed)
     : cube_size_(cube_size),
       masses_(num_objects),
@@ -25,25 +25,25 @@ Simulation::Simulation(float cube_size,
       velocities_(num_objects)
 {
     // Written as !(x > 0) so that NaN is rejected as well.
-    if (!(cube_size > 0.0f)) throw std::invalid_argument("Simulation: cube_size must be > 0");
-    if (!(mass_mean > 0.0f)) throw std::invalid_argument("Simulation: mass_mean must be > 0");
-    if (!(mass_stddev >= 0.0f))
+    if (!(cube_size > 0.0)) throw std::invalid_argument("Simulation: cube_size must be > 0");
+    if (!(mass_mean > 0.0)) throw std::invalid_argument("Simulation: mass_mean must be > 0");
+    if (!(mass_stddev >= 0.0))
     {
         throw std::invalid_argument("Simulation: mass_stddev must be >= 0");
     }
 
     std::mt19937_64 rng(seed);
 
-    if (mass_stddev > 0.0f)
+    if (mass_stddev > 0.0)
     {
-        std::normal_distribution<float> mass_dist(mass_mean, mass_stddev);
+        std::normal_distribution<double> mass_dist(mass_mean, mass_stddev);
         for (std::size_t i = 0; i < num_objects; ++i)
         {
-            float m;
+            double m;
             do
             {
                 m = mass_dist(rng);
-            } while (!(m > 0.0f));
+            } while (!(m > 0.0));
             this->masses_[i] = m;
         }
     }
@@ -53,11 +53,11 @@ Simulation::Simulation(float cube_size,
         for (std::size_t i = 0; i < num_objects; ++i) this->masses_[i] = mass_mean;
     }
 
-    // uniform_real_distribution<float> can return its upper bound through
+    // uniform_real_distribution<double> can return its upper bound through
     // rounding, so redraw that case to keep positions in [0, cube_size).
-    std::uniform_real_distribution<float> position_dist(0.0f, cube_size);
+    std::uniform_real_distribution<double> position_dist(0.0, cube_size);
     auto draw_position = [&] {
-        float p;
+        double p;
         do
         {
             p = position_dist(rng);
@@ -74,9 +74,9 @@ Simulation::Simulation(float cube_size,
     // velocities_ are already zero-filled by their constructors.
 }
 
-void Simulation::step(float time_step)
+void Simulation::step(double time_step)
 {
-    if (!(time_step > 0.0f)) throw std::invalid_argument("Simulation::step: time_step must be > 0");
+    if (!(time_step > 0.0)) throw std::invalid_argument("Simulation::step: time_step must be > 0");
 
     // Create temporary copies of the current positions and velocities to store the results of the gravity calculation.
     auto new_positions = this->positions_;

@@ -118,7 +118,8 @@ Each iteration of the `while` loop in `run()`:
 1. calls `simulation.step(kTimeStep)` (skipped while paused),
 2. copies `simulation.positions()` into the vertex buffer with
    `glBufferSubData`; `PositionData` is already in the vertex layout
-   (`x0, y0, z0, x1, ...`),
+   (`x0, y0, z0, x1, ...`). The buffer holds `double`s (`GL_DOUBLE`), and
+   OpenGL converts them to the shader's `float` inputs,
 3. draws the cube outline (`GL_LINES`) and the objects (`GL_POINTS`),
 4. on every `kSnapshotInterval`-th iteration, reads the frame back with
    `glReadPixels` and writes the PNG. This has to happen before the swap,
@@ -130,6 +131,20 @@ Each iteration of the `while` loop in `run()`:
 
 The loop ends when the window's "should close" flag is set, by Esc or the
 close button.
+
+## Precision
+
+The simulation, the settings, the simulated time and the camera maths are all
+`double`. Drawing is `float`: GLSL 3.30 shaders have no `double` type and
+OpenGL rasterises in single precision, so the view-projection matrix is
+converted to `float` once per frame and the positions when OpenGL reads the
+vertex buffer. This affects only where a point lands on screen, never the
+simulation. Colours, point size and clear colour are `float` because the
+OpenGL functions that take them are.
+
+With 5,000 objects the double-precision `step()` takes about 9 ms, so the
+demo still runs at 60 fps on the RTX A2000; at much larger counts, FP64 makes
+the GPU the bottleneck.
 
 ## Known issues
 

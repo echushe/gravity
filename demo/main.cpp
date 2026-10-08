@@ -42,11 +42,11 @@ namespace
 // Simulation set-up, in SI units: Simulation::step() uses the real G. The
 // masses are chosen so that the cloud collapses in about ten simulated
 // seconds, i.e. a few seconds on screen at 60 frames per second.
-constexpr float kCubeSize = 100.0f;  // m
+constexpr double kCubeSize = 100.0;  // m
 constexpr std::size_t kNumObjects = 5000;
-constexpr float kMassMean = 2.0e10f;    // kg
-constexpr float kMassStddev = 0.0f; //0.4e10f;  // kg
-constexpr float kTimeStep = 0.01f;      // simulated seconds per frame
+constexpr double kMassMean = 2.0e10;    // kg
+constexpr double kMassStddev = 0.0; //0.4e10;  // kg
+constexpr double kTimeStep = 0.01;      // simulated seconds per frame
 
 constexpr int kWindowWidth = 1280;
 constexpr int kWindowHeight = 800;
@@ -99,9 +99,9 @@ void main()
 
 struct Camera
 {
-    float yaw = 0.6f;    // radians, around the y axis
-    float pitch = 0.4f;  // radians, above the x-z plane
-    float distance = 2.5f * kCubeSize;
+    double yaw = 0.6;    // radians, around the y axis
+    double pitch = 0.4;  // radians, above the x-z plane
+    double distance = 2.5 * kCubeSize;
     bool dragging = false;
     double last_x = 0.0;
     double last_y = 0.0;
@@ -151,11 +151,11 @@ void on_cursor_pos(GLFWwindow* window, double x, double y)
 {
     Camera& camera = app_state(window).camera;
     if (!camera.dragging) return;
-    constexpr float kRadiansPerPixel = 0.005f;
-    camera.yaw -= kRadiansPerPixel * static_cast<float>(x - camera.last_x);
-    camera.pitch += kRadiansPerPixel * static_cast<float>(y - camera.last_y);
+    constexpr double kRadiansPerPixel = 0.005;
+    camera.yaw -= kRadiansPerPixel * (x - camera.last_x);
+    camera.pitch += kRadiansPerPixel * (y - camera.last_y);
     // Stay short of straight up / down, where lookAt's up vector degenerates.
-    camera.pitch = std::clamp(camera.pitch, -1.5f, 1.5f);
+    camera.pitch = std::clamp(camera.pitch, -1.5, 1.5);
     camera.last_x = x;
     camera.last_y = y;
 }
@@ -163,20 +163,22 @@ void on_cursor_pos(GLFWwindow* window, double x, double y)
 void on_scroll(GLFWwindow* window, double /*dx*/, double dy)
 {
     Camera& camera = app_state(window).camera;
-    camera.distance *= std::pow(0.9f, static_cast<float>(dy));
-    camera.distance = std::clamp(camera.distance, 0.1f * kCubeSize, 20.0f * kCubeSize);
+    camera.distance *= std::pow(0.9, dy);
+    camera.distance = std::clamp(camera.distance, 0.1 * kCubeSize, 20.0 * kCubeSize);
 }
 
-glm::mat4 view_projection(const Camera& camera, float aspect)
+// Computed in double; converted to float only for the shader, because GLSL
+// 3.30 has no double uniforms and OpenGL rasterises in float anyway.
+glm::mat4 view_projection(const Camera& camera, double aspect)
 {
-    const glm::vec3 centre(0.5f * kCubeSize);
-    const glm::vec3 direction(std::cos(camera.pitch) * std::sin(camera.yaw),
-                              std::sin(camera.pitch),
-                              std::cos(camera.pitch) * std::cos(camera.yaw));
-    const glm::mat4 view = glm::lookAt(centre + camera.distance * direction, centre, glm::vec3(0.0f, 1.0f, 0.0f));
-    const glm::mat4 projection =
-        glm::perspective(glm::radians(45.0f), aspect, 0.01f * kCubeSize, 100.0f * kCubeSize);
-    return projection * view;
+    const glm::dvec3 centre(0.5 * kCubeSize);
+    const glm::dvec3 direction(std::cos(camera.pitch) * std::sin(camera.yaw),
+                               std::sin(camera.pitch),
+                               std::cos(camera.pitch) * std::cos(camera.yaw));
+    const glm::dmat4 view = glm::lookAt(centre + camera.distance * direction, centre, glm::dvec3(0.0, 1.0, 0.0));
+    const glm::dmat4 projection =
+        glm::perspective(glm::radians(45.0), aspect, 0.01 * kCubeSize, 100.0 * kCubeSize);
+    return glm::mat4(projection * view);
 }
 
 GLuint compile_shader(GLenum type, const char* source)
@@ -225,7 +227,9 @@ struct Mesh
     GLsizei num_vertices = 0;
 };
 
-Mesh make_mesh(const float* xyz, std::size_t num_vertices, GLenum usage)
+// The buffer holds doubles; OpenGL converts each vertex to the shader's float
+// vec3 when it reads it.
+Mesh make_mesh(const double* xyz, std::size_t num_vertices, GLenum usage)
 {
     Mesh mesh;
     mesh.num_vertices = static_cast<GLsizei>(num_vertices);
@@ -233,22 +237,22 @@ Mesh make_mesh(const float* xyz, std::size_t num_vertices, GLenum usage)
     glBindVertexArray(mesh.vao);
     glGenBuffers(1, &mesh.vbo);
     glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
-    glBufferData(GL_ARRAY_BUFFER, 3 * num_vertices * sizeof(float), xyz, usage);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+    glBufferData(GL_ARRAY_BUFFER, 3 * num_vertices * sizeof(double), xyz, usage);
+    glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, 3 * sizeof(double), nullptr);
     glEnableVertexAttribArray(0);
     glBindVertexArray(0);
     return mesh;
 }
 
 // The 12 edges of the simulation cube, as pairs of vertices for GL_LINES.
-std::vector<float> cube_edges()
+std::vector<double> cube_edges()
 {
-    const float s = kCubeSize;
-    const float corners[8][3] = {
+    const double s = kCubeSize;
+    const double corners[8][3] = {
         {0, 0, 0}, {s, 0, 0}, {s, s, 0}, {0, s, 0}, {0, 0, s}, {s, 0, s}, {s, s, s}, {0, s, s}};
     const int edges[12][2] = {
         {0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6}, {6, 7}, {7, 4}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
-    std::vector<float> xyz;
+    std::vector<double> xyz;
     for (const auto& edge : edges)
     {
         for (int corner : edge) xyz.insert(xyz.end(), corners[corner], corners[corner] + 3);
@@ -257,7 +261,7 @@ std::vector<float> cube_edges()
 }
 
 // Prints the positions of the first kNumLoggedPositions objects to stdout.
-void print_positions(const gravity::PositionData& positions, float simulated_time)
+void print_positions(const gravity::PositionData& positions, double simulated_time)
 {
     const std::size_t n = std::min(kNumLoggedPositions, positions.size());
     log_message("t = %.2f s, positions of the first %zu objects:", simulated_time, n);
@@ -345,7 +349,7 @@ void run()
                 kMassStddev,
                 kTimeStep);
 
-    const std::vector<float> edges = cube_edges();
+    const std::vector<double> edges = cube_edges();
     const Mesh cube = make_mesh(edges.data(), edges.size() / 3, GL_STATIC_DRAW);
     // PositionData is laid out as x0, y0, z0, x1, ..., which is exactly the
     // vertex layout, so it is copied into the buffer as is.
@@ -359,7 +363,7 @@ void run()
     glEnable(GL_MULTISAMPLE);
     glClearColor(0.02f, 0.02f, 0.05f, 1.0f);
 
-    float simulated_time = 0.0f;
+    double simulated_time = 0.0;
     std::size_t num_frames = 0;
     std::size_t num_steps = 0;
     std::size_t num_snapshots = 0;
@@ -383,7 +387,7 @@ void run()
             ++num_steps;
             const gravity::PositionData positions = simulation.positions();
             glBindBuffer(GL_ARRAY_BUFFER, objects.vbo);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * positions.size() * sizeof(float), positions.data());
+            glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * positions.size() * sizeof(double), positions.data());
         }
 
         int width = 0;
@@ -395,7 +399,7 @@ void run()
         // A minimised window has a zero-sized framebuffer: nothing to draw.
         if (width > 0 && height > 0)
         {
-            const glm::mat4 vp = view_projection(state.camera, static_cast<float>(width) / height);
+            const glm::mat4 vp = view_projection(state.camera, static_cast<double>(width) / height);
             glUseProgram(program);
             glUniformMatrix4fv(view_projection_location, 1, GL_FALSE, glm::value_ptr(vp));
             glUniform1f(point_size_location, kPointSize);

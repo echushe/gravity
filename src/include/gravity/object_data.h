@@ -1,10 +1,10 @@
 // Per-object state: masses, positions, velocities and accelerations.
 //
-// Each class owns one contiguous float array, in the layout that the
+// Each class owns one contiguous double array, in the layout that the
 // functions in gravity.h expect, so data() can be passed to them directly:
-//   MassData:                                m0, m1, m2, ...              (size() floats)
+//   MassData:                                m0, m1, m2, ...              (size() doubles)
 //   PositionData, VelocityData,
-//   AccelerationData:                        x0, y0, z0, x1, y1, z1, ...  (3 * size() floats)
+//   AccelerationData:                        x0, y0, z0, x1, y1, z1, ...  (3 * size() doubles)
 #pragma once
 
 #include <cstddef>
@@ -17,19 +17,19 @@ class MassData
 {
 public:
     // n objects, all with mass 0.
-    explicit MassData(std::size_t n = 0) : values_(n, 0.0f) {}
+    explicit MassData(std::size_t n = 0) : values_(n, 0.0) {}
 
     // Number of objects.
     std::size_t size() const noexcept { return values_.size(); }
 
-    float& operator[](std::size_t i) { return values_[i]; }
-    float operator[](std::size_t i) const { return values_[i]; }
+    double& operator[](std::size_t i) { return values_[i]; }
+    double operator[](std::size_t i) const { return values_[i]; }
 
-    float* data() noexcept { return values_.data(); }
-    const float* data() const noexcept { return values_.data(); }
+    double* data() noexcept { return values_.data(); }
+    const double* data() const noexcept { return values_.data(); }
 
 private:
-    std::vector<float> values_;
+    std::vector<double> values_;
 };
 
 namespace detail
@@ -40,23 +40,23 @@ class Vector3Data
 {
 public:
     // n objects, all set to (0, 0, 0).
-    explicit Vector3Data(std::size_t n = 0) : values_(3 * n, 0.0f) {}
+    explicit Vector3Data(std::size_t n = 0) : values_(3 * n, 0.0) {}
 
-    // Number of objects; data() holds 3 * size() floats.
+    // Number of objects; data() holds 3 * size() doubles.
     std::size_t size() const noexcept { return values_.size() / 3; }
 
-    float& x(std::size_t i) { return values_[3 * i]; }
-    float& y(std::size_t i) { return values_[3 * i + 1]; }
-    float& z(std::size_t i) { return values_[3 * i + 2]; }
-    float x(std::size_t i) const { return values_[3 * i]; }
-    float y(std::size_t i) const { return values_[3 * i + 1]; }
-    float z(std::size_t i) const { return values_[3 * i + 2]; }
+    double& x(std::size_t i) { return values_[3 * i]; }
+    double& y(std::size_t i) { return values_[3 * i + 1]; }
+    double& z(std::size_t i) { return values_[3 * i + 2]; }
+    double x(std::size_t i) const { return values_[3 * i]; }
+    double y(std::size_t i) const { return values_[3 * i + 1]; }
+    double z(std::size_t i) const { return values_[3 * i + 2]; }
 
-    float* data() noexcept { return values_.data(); }
-    const float* data() const noexcept { return values_.data(); }
+    double* data() noexcept { return values_.data(); }
+    const double* data() const noexcept { return values_.data(); }
 
 private:
-    std::vector<float> values_;
+    std::vector<double> values_;
 };
 
 }  // namespace detail
