@@ -89,6 +89,14 @@ __global__ void calculate_gravity_kernel_2D(const double* __restrict__ masses,
         for (std::size_t j = offset_y; j < n; j += n_threads_y)
         {
             // Implementation for the 2D grid version would go here.
+            if (i == j)
+            {
+                accelerations[3 * (i * n + j)] = 0.0;
+                accelerations[3 * (i * n + j) + 1] = 0.0;
+                accelerations[3 * (i * n + j) + 2] = 0.0;
+                continue;
+            }
+
             const double x_i = positions[3 * i];
             const double y_i = positions[3 * i + 1];
             const double z_i = positions[3 * i + 2];
