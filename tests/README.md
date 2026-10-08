@@ -17,6 +17,9 @@ tests/
 
 Executables are written to `build/tests/`.
 
+Not covered yet: `Simulation::step()` and the GPU compute functions in
+`gravity.h` (`calculate_gravity` and the rest) have no tests.
+
 ## Building and running
 
 Run these from the project root:
@@ -29,6 +32,10 @@ ctest --test-dir build -R simulation -V         # run tests matching a pattern, 
 cmake --build build --target test_simulation    # build one test
 ./build/tests/test_simulation                   # run one test directly
 ```
+
+`cmake -B build` also configures the OpenGL demo, which needs GLFW, GLEW and
+GLM. On a machine without them (a CI runner, say), add
+`-DGRAVITY_BUILD_DEMO=OFF` to build only the library and the tests.
 
 `ctest` exits non-zero if any test fails, so you can use it in CI.
 `--output-on-failure` prints a failing test's output; `-V` prints the output

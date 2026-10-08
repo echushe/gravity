@@ -1,0 +1,126 @@
+# Work log
+
+What was done on the project, in order, with the reasons behind the less
+obvious changes. Open follow-ups are collected at the end.
+
+## 2026-10-08 (with Claude Code)
+
+### 1. Fixed `Simulation::step()` not compiling
+
+- `src/simulation.cpp` called `calculate_gravity_velocity_and_position`
+  without including the header that declares it. Added
+  `#include "gravity/gravity.h"`.
+- In `src/nbody_kernels.cu`, `calculate_gravity_velocity_and_position` called
+  `calculate_gravity` (the host-array version, which takes `G` before the
+  output array) with device pointers and in the wrong argument order. Changed
+  it to `calculate_gravity_device`.
+- Verified: the whole project builds and both tests pass.
+- Commits: `2deb9d5`, `03dd7e2`.
+
+### 2. Chose a display engine for the demo
+
+- Compared raylib (built-in 3D camera, least code), SDL (2D renderer,
+  projection by hand) and GLFW + OpenGL (most code, but allows CUDA–OpenGL
+  interop later). GLFW + OpenGL was chosen, accepting a CPU → GPU copy of the
+  positions every frame for now.
+
+### 3. Added the OpenGL demo (`demo/`)
+
+- `demo/main.cpp`: GLFW window, OpenGL 3.3 core profile, GLEW, GLM. Orbit
+  camera (drag to rotate, scroll to zoom), Space to pause, Esc to quit. Draws
+  the cube outline and one point per object; the vertex shader does the
+  perspective projection.
+- `demo/CMakeLists.txt` and the `GRAVITY_BUILD_DEMO` option in the top-level
+  `CMakeLists.txt`. Configuring fails with install instructions if a
+  dependency is missing.
+- Dependencies: `sudo apt install libglfw3-dev libglew-dev libglm-dev`.
+- Masses and the time step were chosen so that the cloud visibly collapses
+  with the real G (2e10 kg per object in a 100 m cube).
+- Commit: `81027d6`. The public `positions()`, `velocities()` and `masses()`
+  accessors the demo needs came in `3a8a344`.
+
+### 4. Explained how the main loop is paced
+
+- No code change. The loop runs until the window's "should close" flag is set
+  (Esc or the close button); `glfwSwapBuffers` waits for vsync, and
+  `glfwPollEvents` handles input without waiting. Now described in
+  `demo/README.md`.
+
+### 5. Logged positions and added stdout logging
+
+- The first 10 positions are printed at start-up and every half second while
+  running.
+- `log_message()` prints timestamped lines for start-up steps, the GPU used
+  for drawing, the simulation settings, pause/resume, Esc, and a summary at
+  exit.
+- Commit: `a0d1c5e` (together with item 6).
+
+### 6. Fixed the demo showing only the cube
+
+- Symptom: the positions in the log were correct, but no objects were drawn.
+- Diagnosis: a debug build read the framebuffer back. All objects were inside
+  the view, the vertex buffer held the right data and there were no OpenGL
+  errors, yet there were 0 point-coloured pixels. Turning off the
+  round-point `discard` brought back about 14,000. Rendering `gl_PointCoord`
+  as a colour showed that Mesa's Intel driver (23.2.1) leaves it at (0, 0),
+  which the disc test always discards. On the NVIDIA GPU it was correct.
+- Fix: draw plain square points (no visible difference at 3 px) and leave a
+  comment explaining why.
+- Verified: about 14,000 point pixels on the Intel GPU.
+- Commit: `a0d1c5e`.
+
+### 7. Added PNG snapshots
+
+- Every `kSnapshotInterval` iterations of the main loop, the frame is read
+  with `glReadPixels` (before the buffer swap) and written to
+  `snapshots/frame_<iteration>.png`. The folder is created at start-up and
+  added to `.gitignore`.
+- PNG writing uses `stb_image_write.h` v1.16 (public domain / MIT), which
+  CMake downloads with `FetchContent`, pinned to commit `2c980bb` and checked
+  against its SHA-256, so no extra `sudo` install is needed.
+- Verified with a snapshot every 5 iterations: 42 correct 1280×800 images in
+  4 s, at about 55 fps instead of 60.
+- Commit: `257b7f1`.
+
+### 8. Made a video from the snapshots
+
+- Combined 590 snapshots (frames 5 to 2950) into `snapshots/gravity_demo.mp4`
+  with ffmpeg: H.264, 24 fps (twice real speed), 24.6 s, 19.7 MB. The command
+  is in `demo/README.md`.
+
+### 9. Updated the documentation
+
+- `src/README.md`: project layout (demo, tests, this log), demo requirements,
+  the `GRAVITY_BUILD_DEMO` option, a usage example with `step()` and
+  `positions()`, and API entries for `step()`, the accessors and the GPU
+  compute functions.
+- `tests/README.md`: how to build without the demo's dependencies, and what is
+  not tested yet.
+- `demo/README.md` (new): building, running, controls, settings, output
+  (log, snapshots, video), how the main loop works, known issues.
+- `WORKLOG.md` (this file).
+
+## Open follow-ups
+
+- **Softening.** The gravity kernel adds only 1e-10 m² to each squared
+  distance, so close encounters throw objects far out of the cube. Make the
+  softening a parameter of the kernel and of `Simulation` (around 1 m² suits
+  the demo's settings).
+- **Tests.** `Simulation::step()` and the GPU compute functions in
+  `gravity.h` have no tests.
+- **Argument order.** `calculate_gravity` takes `G` before the output array,
+  `calculate_gravity_device` after it. This caused the bug in item 1;
+  consider making them consistent.
+- **Copies.** `positions()`, `velocities()` and `masses()` return copies, and
+  `step()` copies the whole state to the GPU and back on every call. Returning
+  `const&`, and later keeping the state on the GPU with CUDA–OpenGL interop,
+  would remove them if they become a bottleneck.
+- **Stale comment.** The constructor comment in `simulation.h` still says
+  accelerations start at zero, but `Simulation` no longer stores
+  accelerations.
+- **Unused kernels.** nvcc warns that `scale_1D`,
+  `calculate_gravity_kernel_2D` and `accelerations_2D_to_1D` are never used.
+- **Doc comments.** Most functions in `gravity.h` have no comments.
+- **Editor errors.** VS Code's code analysis reported "no member
+  `positions`" in `demo/main.cpp` while the real build compiled fine; it was
+  working from an out-of-date copy of the header.

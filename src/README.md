@@ -13,6 +13,9 @@ library itself needs `nvcc`.
 ```
 gravity/
 ├── CMakeLists.txt              top-level project: compiler settings, GPU target, options
+├── demo/                       OpenGL viewer for the simulation (see ../demo/README.md)
+├── tests/                      test programs (see ../tests/README.md)
+├── WORKLOG.md                  record of the work done on the project, and open follow-ups
 └── src/
     ├── CMakeLists.txt          the `gravity` library target
     ├── include/gravity/        public headers (the only ones consumers include)
@@ -23,7 +26,8 @@ gravity/
     ├── device_buffer.h         internal: RAII wrapper around cudaMalloc/cudaFree
     ├── device.cpp              device queries (CUDA runtime API only, built with g++)
     ├── nbody_kernels.cu        N-body kernels + host wrappers (built with nvcc)
-    └── simulation.cpp          Simulation setup (plain C++, no CUDA, built with g++)
+    └── simulation.cpp          Simulation setup and step() (plain C++, built with g++;
+                                its GPU work goes through the functions in gravity.h)
 ```
 
 Build output goes into the build directory you choose (`build/` below). The
@@ -36,6 +40,11 @@ library ends up in `build/lib/`.
 - A C++17 host compiler (tested with g++ 11.4)
 - An NVIDIA GPU and driver to run anything. Building does not need a GPU, but
   you then have to set `CMAKE_CUDA_ARCHITECTURES` explicitly (see below).
+- For the demo only: GLFW, GLEW, GLM and the OpenGL development files
+  (`sudo apt install libglfw3-dev libglew-dev libglm-dev` on Ubuntu), and
+  internet access the first time you configure, because CMake downloads
+  `stb_image_write.h`. Without these, configure with
+  `-DGRAVITY_BUILD_DEMO=OFF`.
 
 ## Building
 
@@ -43,7 +52,7 @@ Run these from the project root:
 
 ```sh
 cmake -B build                          # configure (Release by default)
-cmake --build build -j                  # build the library and the tests
+cmake --build build -j                  # build the library, the tests and the demo
 ctest --test-dir build --output-on-failure    # run the tests
 ```
 
@@ -62,6 +71,7 @@ cmake --build build --target gravity              # build only the library
 | `CMAKE_CUDA_ARCHITECTURES` | the GPU in this machine | Which GPU architectures to compile for, e.g. `86` or `"75;86;89"`. Set it when building for other machines or on a machine with no GPU. |
 | `BUILD_SHARED_LIBS` | `OFF` | `ON` builds `libgravity.so` instead of `libgravity.a`. |
 | `GRAVITY_BUILD_TESTS` | `ON` when this is the top-level project | Build `tests/`. It is off when another project includes gravity with `add_subdirectory`. |
+| `GRAVITY_BUILD_DEMO` | `ON` when this is the top-level project | Build the OpenGL viewer in `demo/`. Configuring fails with install instructions if GLFW, GLEW or GLM is missing; set it to `OFF` to skip the demo. |
 
 CMake also writes `build/compile_commands.json`. clangd and the VS Code C/C++
 extension can use it for code completion and navigation.
@@ -69,13 +79,20 @@ extension can use it for code completion and navigation.
 ## Using the library
 
 ```cpp
+#include <cstdio>
 #include <gravity/simulation.h>
 
 int main() {
-    // 1000 objects in a 100 x 100 x 100 cube, masses drawn from N(5, 1).
-    gravity::Simulation sim(100.0f, 1000, 5.0f, 1.0f);
+    // 1000 objects in a 100 m cube, masses drawn from N(2e10, 4e9) kg.
+    gravity::Simulation sim(100.0f, 1000, 2.0e10f, 4.0e9f);
+    for (int i = 0; i < 100; ++i) sim.step(0.01f);  // 1 simulated second, on the GPU
+    const gravity::PositionData p = sim.positions();
+    std::printf("object 0 is at (%g, %g, %g) m\n", p.x(0), p.y(0), p.z(0));
 }
 ```
+
+Units are SI: `step()` uses the real gravitational constant, so masses must be
+large (around 1e10 kg in a 100 m cube) for any visible motion.
 
 **From another CMake project.** Add gravity as a subdirectory and link the
 `gravity::gravity` target. This sets the include path and the CUDA runtime
@@ -113,7 +130,11 @@ comments.
 | `DeviceInfo device_info(int device = 0)` | Name, compute capability, SM count and memory size of a device. |
 | `class CudaError` | Thrown when any CUDA call fails. `what()` gives the file, line, failed call and CUDA error name; `code()` gives the `cudaError_t` value. |
 | `MassData`, `PositionData`, `VelocityData`, `AccelerationData` | Per-object state ([object_data.h](include/gravity/object_data.h)). `size()` is the number of objects. `data()` is a flat `float` array in the layout the GPU functions take: `m0, m1, ...` for masses and `x0, y0, z0, x1, ...` for the 3D quantities. |
-| `Simulation(L, n, mass_mean, mass_stddev[, seed])` | `n` objects in a cube of side `L` ([simulation.h](include/gravity/simulation.h)): masses from a normal distribution (redrawn until positive), positions uniform in `[0, L)`, zero velocities and accelerations. Pass `seed` for a reproducible setup. Uses no CUDA directly. |
+| `Simulation(L, n, mass_mean, mass_stddev[, seed])` | `n` objects in a cube of side `L` ([simulation.h](include/gravity/simulation.h)): masses from a normal distribution (redrawn until positive), positions uniform in `[0, L)`, zero velocities. Pass `seed` for a reproducible setup. Uses no CUDA directly. |
+| `Simulation::step(T)` | Advances the simulation by `T` seconds on the GPU, with G = 6.6743e-11 (SI units): computes every acceleration `a`, then `x += v·T + ½·a·T²` and `v += a·T`. Each call copies masses, positions and velocities to the GPU and the results back. Throws `std::invalid_argument` unless `T > 0`. |
+| `Simulation::positions()`, `velocities()`, `masses()` | Copies of the current state, in the `data()` layout above. |
+| `calculate_gravity`, `calculate_velocity`, `calculate_velocity_and_position`, `calculate_gravity_velocity_and_position` | GPU compute functions that take host arrays. Each call allocates device memory, copies the inputs over, runs the kernels and copies the results back. Gravity adds 1e-10 m² to every squared distance (softening). |
+| `calculate_gravity_device`, `calculate_velocity_device`, `calculate_velocity_and_position_device` | The same computations on arrays that are already in device memory: no allocation, no copies. Note that `calculate_gravity` takes `G` before the output array, while `calculate_gravity_device` takes it after. |
 
 ## Adding code
 

@@ -57,7 +57,7 @@ constexpr std::size_t kNumLoggedPositions = 10;
 
 // A PNG snapshot is saved every kSnapshotInterval iterations of the main loop,
 // as kSnapshotDir/frame_<iteration>.png.
-constexpr std::size_t kSnapshotInterval = 5;
+constexpr std::size_t kSnapshotInterval = 10000;
 const char* const kSnapshotDir = "snapshots";
 
 // Prints one line to stdout, prefixed with the seconds since the first call,
