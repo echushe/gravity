@@ -200,6 +200,35 @@ obvious changes. Open follow-ups are collected at the end.
   printed in scientific notation: with equal masses it is the centre-of-mass
   velocity and stays around 1e-17 m/s, which shows that momentum is
   conserved.
+- Commit: `28e2b74`.
+
+### 14. Added `max_velocity` to `Simulation`
+
+- New constructor argument `max_velocity`, after `mass_stddev` and before
+  `seed`: `Simulation(L, n, mass_mean, mass_stddev, max_velocity[, seed])`.
+  Each velocity component is drawn independently and uniformly from
+  [−max_velocity, max_velocity]. 0 keeps all velocities at zero without
+  drawing any random numbers. Must be finite and ≥ 0 (an infinite range is
+  undefined behaviour in `uniform_real_distribution`).
+- The argument is required, with no default. With a default, existing calls
+  such as `Simulation(100.0, 1000, 5.0, 1.0, 42)` would still compile but
+  would read the seed 42 as `max_velocity`. Every existing call in the tests
+  was updated explicitly.
+- Velocities are drawn after the masses and positions, so for a given seed
+  the masses and positions are the same as before this change.
+- Demo: new `kMaxVelocity`, set to 10 m/s by the user (2K/|U| ≈ 1.58: the
+  cloud expands at first but stays bound, E ≈ −0.21 |U|), also
+  logged at start-up.
+- Tests: velocity range, coverage of the range, mean (≈ 0) and variance
+  (≈ v²/3) over 30,000 draws; max_velocity 0 gives zeros; same seed gives the
+  same masses and positions whatever max_velocity is; negative, NaN and
+  infinite values are rejected. The `Simulation::step()` leapfrog test now
+  starts with non-zero velocities.
+- Measured for the demo's setup (5,000 × 2e10 kg in a 100 m cube):
+  U = −0.946 G·M²/L (the theoretical value for a uniform cube is about
+  −0.941). With uniform components K = ½·M·v_max², so 8 m/s gives
+  2K/|U| = 1.01 (virial equilibrium) and the cloud is unbound above
+  √(2|U|/M) ≈ 11.2 m/s. Leapfrog conserves energy to 2e-6 at 8 and 15 m/s.
 
 ## Open follow-ups
 

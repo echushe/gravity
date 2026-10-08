@@ -26,8 +26,12 @@ double Simulation::default_time_step(double softening, double mean_mass)
     return kTimeStepFraction * std::sqrt(softening * softening * softening / (kGravitationalConstant * mean_mass));
 }
 
-Simulation::Simulation(double cube_size, std::size_t num_objects, double mass_mean, double mass_stddev)
-    : Simulation(cube_size, num_objects, mass_mean, mass_stddev, std::random_device{}())
+Simulation::Simulation(double cube_size,
+                       std::size_t num_objects,
+                       double mass_mean,
+                       double mass_stddev,
+                       double max_velocity)
+    : Simulation(cube_size, num_objects, mass_mean, mass_stddev, max_velocity, std::random_device{}())
 {
 }
 
@@ -35,6 +39,7 @@ Simulation::Simulation(double cube_size,
                        std::size_t num_objects,
                        double mass_mean,
                        double mass_stddev,
+                       double max_velocity,
                        std::uint64_t seed)
     : cube_size_(cube_size),
       masses_(num_objects),
@@ -48,6 +53,11 @@ Simulation::Simulation(double cube_size,
     if (!(mass_stddev >= 0.0))
     {
         throw std::invalid_argument("Simulation: mass_stddev must be >= 0");
+    }
+    // An infinite range would be undefined behaviour in uniform_real_distribution.
+    if (!(max_velocity >= 0.0 && std::isfinite(max_velocity)))
+    {
+        throw std::invalid_argument("Simulation: max_velocity must be finite and >= 0");
     }
 
     std::mt19937_64 rng(seed);
@@ -89,7 +99,21 @@ Simulation::Simulation(double cube_size,
         this->positions_.z(i) = draw_position();
     }
 
-    // velocities_ are already zero-filled by their constructors.
+    // Drawn last, so that max_velocity does not change the masses or positions
+    // for a given seed. With max_velocity 0, velocities_ keep the zeros from
+    // their constructor and no random numbers are drawn. (The upper bound is
+    // excluded by uniform_real_distribution, which makes no practical
+    // difference to the range.)
+    if (max_velocity > 0.0)
+    {
+        std::uniform_real_distribution<double> velocity_dist(-max_velocity, max_velocity);
+        for (std::size_t i = 0; i < num_objects; ++i)
+        {
+            this->velocities_.x(i) = velocity_dist(rng);
+            this->velocities_.y(i) = velocity_dist(rng);
+            this->velocities_.z(i) = velocity_dist(rng);
+        }
+    }
 
     double mean_mass = mass_mean;
     if (num_objects > 0)

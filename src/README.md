@@ -83,8 +83,9 @@ extension can use it for code completion and navigation.
 #include <gravity/simulation.h>
 
 int main() {
-    // 1000 objects in a 100 m cube, masses drawn from N(2e10, 4e9) kg.
-    gravity::Simulation sim(100.0, 1000, 2.0e10, 4.0e9);
+    // 1000 objects in a 100 m cube, masses drawn from N(2e10, 4e9) kg,
+    // velocity components uniform in [-2, 2] m/s.
+    gravity::Simulation sim(100.0, 1000, 2.0e10, 4.0e9, 2.0);
     for (int i = 0; i < 100; ++i) sim.step();  // 100 steps of sim.time_step() seconds, on the GPU
     const gravity::PositionData p = sim.positions();
     std::printf("object 0 is at (%g, %g, %g) m\n", p.x(0), p.y(0), p.z(0));
@@ -136,7 +137,7 @@ comments.
 | `DeviceInfo device_info(int device = 0)` | Name, compute capability, SM count and memory size of a device. |
 | `class CudaError` | Thrown when any CUDA call fails. `what()` gives the file, line, failed call and CUDA error name; `code()` gives the `cudaError_t` value. |
 | `MassData`, `PositionData`, `VelocityData`, `AccelerationData` | Per-object state ([object_data.h](include/gravity/object_data.h)). `size()` is the number of objects. `data()` is a flat `double` array in the layout the GPU functions take: `m0, m1, ...` for masses and `x0, y0, z0, x1, ...` for the 3D quantities. |
-| `Simulation(L, n, mass_mean, mass_stddev[, seed])` | `n` objects in a cube of side `L` ([simulation.h](include/gravity/simulation.h)): masses from a normal distribution (redrawn until positive), positions uniform in `[0, L)`, zero velocities. Also sets the softening length and the time step (next rows). Pass `seed` for a reproducible setup. Uses no CUDA directly. |
+| `Simulation(L, n, mass_mean, mass_stddev, max_velocity[, seed])` | `n` objects in a cube of side `L` ([simulation.h](include/gravity/simulation.h)): masses from a normal distribution (redrawn until positive), positions uniform in `[0, L)`, each velocity component uniform in `[-max_velocity, max_velocity]` (all zero for 0). Also sets the softening length and the time step (next rows). Pass `seed` for a reproducible setup; velocities are drawn last, so `max_velocity` does not change the masses or positions for a given seed. Throws `std::invalid_argument` unless `L > 0`, `mass_mean > 0`, `mass_stddev >= 0` and `max_velocity` is finite and `>= 0`. Uses no CUDA directly. |
 | `softening()`, `default_softening(L, n)` | Softening length ε = `kSofteningFraction` × L / ∛n, a fraction (0.05) of the mean distance between objects. Gravity uses r² + ε² in place of r², which caps the force of close encounters. |
 | `time_step()`, `default_time_step(ε, m̄)` | Time step T = `kTimeStepFraction` × √(ε³ / (G·m̄)), a fraction (0.1) of the time a close pass at distance ε takes. m̄ is the mean of the drawn masses. |
 | `Simulation::step()`, `step(T)` | Advances the simulation by `time_step()`, or by `T` seconds, with one leapfrog step on the GPU (`leapfrog_step`, below), with G = `kGravitationalConstant` = 6.6743e-11 (SI units). The accelerations are kept between steps; the first call computes them, so constructing a `Simulation` needs no GPU. Each call copies the state to the GPU and back. `step(T)` throws `std::invalid_argument` unless `T > 0`. |

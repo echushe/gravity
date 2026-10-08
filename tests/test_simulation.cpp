@@ -58,25 +58,69 @@ void test_vector3_data()
 
 void test_simulation_construction()
 {
-    gravity::Simulation random_seed(100.0, 1000, 5.0, 1.0);
-    gravity::Simulation fixed_seed(100.0, 1000, 5.0, 1.0, 42);
-    gravity::Simulation empty(100.0, 0, 5.0, 1.0);
-    gravity::Simulation equal_masses(1.0, 10, 5.0, 0.0);
+    gravity::Simulation random_seed(100.0, 1000, 5.0, 1.0, 0.0);
+    gravity::Simulation fixed_seed(100.0, 1000, 5.0, 1.0, 0.0, 42);
+    gravity::Simulation empty(100.0, 0, 5.0, 1.0, 0.0);
+    gravity::Simulation equal_masses(1.0, 10, 5.0, 0.0, 0.0);
+    gravity::Simulation moving(100.0, 1000, 5.0, 1.0, 3.0, 42);
     // A large stddev makes many draws non-positive; they must be redrawn, not hang.
-    gravity::Simulation wide_masses(1.0, 1000, 1.0, 100.0, 7);
+    gravity::Simulation wide_masses(1.0, 1000, 1.0, 100.0, 0.0, 7);
+}
+
+void test_initial_velocities()
+{
+    const double v_max = 3.0;
+    const std::size_t n = 10000;
+    const gravity::Simulation sim(100.0, n, 5.0, 1.0, v_max, 42);
+    const gravity::VelocityData v = sim.velocities();
+
+    // Every component lies in [-v_max, v_max], and the draws cover the range.
+    double lowest = v_max;
+    double highest = -v_max;
+    double sum = 0.0;
+    double sum_sq = 0.0;
+    for (std::size_t i = 0; i < 3 * n; ++i)
+    {
+        const double c = v.data()[i];
+        CHECK(c >= -v_max && c <= v_max);
+        lowest = std::fmin(lowest, c);
+        highest = std::fmax(highest, c);
+        sum += c;
+        sum_sq += c * c;
+    }
+    CHECK(lowest < -0.99 * v_max);
+    CHECK(highest > 0.99 * v_max);
+    // Uniform on [-v_max, v_max]: mean 0, variance v_max^2 / 3. With 30,000
+    // draws the standard errors are about 0.01 and 0.02.
+    CHECK_NEAR(sum / (3 * n), 0.0, 0.05);
+    CHECK_NEAR(sum_sq / (3 * n), v_max * v_max / 3.0, 0.1);
+
+    // max_velocity 0 gives zero velocities.
+    const gravity::Simulation at_rest(100.0, 100, 5.0, 1.0, 0.0, 42);
+    const gravity::VelocityData zero = at_rest.velocities();
+    for (std::size_t i = 0; i < 3 * zero.size(); ++i) CHECK(zero.data()[i] == 0.0);
+
+    // For a given seed, max_velocity changes neither masses nor positions.
+    const gravity::Simulation slow(100.0, 100, 5.0, 1.0, 0.0, 7);
+    const gravity::Simulation fast(100.0, 100, 5.0, 1.0, 50.0, 7);
+    for (std::size_t i = 0; i < 100; ++i) CHECK(slow.masses()[i] == fast.masses()[i]);
+    for (std::size_t i = 0; i < 300; ++i) CHECK(slow.positions().data()[i] == fast.positions().data()[i]);
 }
 
 void test_simulation_rejects_bad_arguments()
 {
-    CHECK_THROWS(gravity::Simulation(0.0, 10, 5.0, 1.0), std::invalid_argument);
-    CHECK_THROWS(gravity::Simulation(-1.0, 10, 5.0, 1.0), std::invalid_argument);
-    CHECK_THROWS(gravity::Simulation(1.0, 10, 0.0, 1.0), std::invalid_argument);
-    CHECK_THROWS(gravity::Simulation(1.0, 10, -5.0, 1.0), std::invalid_argument);
-    CHECK_THROWS(gravity::Simulation(1.0, 10, 5.0, -1.0), std::invalid_argument);
-    CHECK_THROWS(gravity::Simulation(NAN, 10, 5.0, 1.0), std::invalid_argument);
+    CHECK_THROWS(gravity::Simulation(0.0, 10, 5.0, 1.0, 0.0), std::invalid_argument);
+    CHECK_THROWS(gravity::Simulation(-1.0, 10, 5.0, 1.0, 0.0), std::invalid_argument);
+    CHECK_THROWS(gravity::Simulation(1.0, 10, 0.0, 1.0, 0.0), std::invalid_argument);
+    CHECK_THROWS(gravity::Simulation(1.0, 10, -5.0, 1.0, 0.0), std::invalid_argument);
+    CHECK_THROWS(gravity::Simulation(1.0, 10, 5.0, -1.0, 0.0), std::invalid_argument);
+    CHECK_THROWS(gravity::Simulation(NAN, 10, 5.0, 1.0, 0.0), std::invalid_argument);
+    CHECK_THROWS(gravity::Simulation(1.0, 10, 5.0, 1.0, -1.0), std::invalid_argument);
+    CHECK_THROWS(gravity::Simulation(1.0, 10, 5.0, 1.0, NAN), std::invalid_argument);
+    CHECK_THROWS(gravity::Simulation(1.0, 10, 5.0, 1.0, INFINITY), std::invalid_argument);
 
     // step() checks the time step before doing any GPU work.
-    gravity::Simulation sim(1.0, 10, 5.0, 1.0, 3);
+    gravity::Simulation sim(1.0, 10, 5.0, 1.0, 0.0, 3);
     CHECK_THROWS(sim.step(0.0), std::invalid_argument);
     CHECK_THROWS(sim.step(-0.1), std::invalid_argument);
     CHECK_THROWS(sim.step(NAN), std::invalid_argument);
@@ -102,12 +146,12 @@ void test_softening_and_time_step()
     CHECK_THROWS(Simulation::default_time_step(NAN, m), std::invalid_argument);
 
     // Equal masses: the time step uses mass_mean itself.
-    const Simulation equal_masses(100.0, 1000, m, 0.0, 1);
+    const Simulation equal_masses(100.0, 1000, m, 0.0, 0.0, 1);
     CHECK_NEAR(equal_masses.softening(), Simulation::default_softening(100.0, 1000), 1e-12);
     CHECK_NEAR(equal_masses.time_step(), Simulation::default_time_step(equal_masses.softening(), m), 1e-15);
 
     // Varying masses: the time step uses the mean of the masses actually drawn.
-    const Simulation varied_masses(100.0, 1000, m, 0.5 * m, 2);
+    const Simulation varied_masses(100.0, 1000, m, 0.5 * m, 0.0, 2);
     const gravity::MassData masses = varied_masses.masses();
     double total = 0.0;
     for (std::size_t i = 0; i < masses.size(); ++i) total += masses[i];
@@ -116,7 +160,7 @@ void test_softening_and_time_step()
                1e-15);
 
     // No objects: the time step falls back to mass_mean.
-    const Simulation empty(100.0, 0, m, 0.0);
+    const Simulation empty(100.0, 0, m, 0.0, 0.0);
     CHECK_NEAR(empty.time_step(), Simulation::default_time_step(empty.softening(), m), 1e-15);
 }
 
@@ -131,6 +175,7 @@ int main()
             test_mass_data();
             test_vector3_data();
             test_simulation_construction();
+            test_initial_velocities();
             test_simulation_rejects_bad_arguments();
             test_softening_and_time_step();
         },

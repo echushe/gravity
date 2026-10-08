@@ -47,6 +47,10 @@ constexpr double kCubeSize = 100.0;  // m
 constexpr std::size_t kNumObjects = 5000;
 constexpr double kMassMean = 2.0e10;    // kg
 constexpr double kMassStddev = 0.0; //0.4e10;  // kg
+// Each velocity component is drawn uniformly from [-kMaxVelocity, kMaxVelocity].
+// For the settings above: 0 gives a cold collapse, about 8 m/s keeps the cloud
+// in virial equilibrium (2K = |U|), and above about 11.2 m/s it flies apart.
+constexpr double kMaxVelocity = 10.0;  // m/s
 
 constexpr int kWindowWidth = 1280;
 constexpr int kWindowHeight = 800;
@@ -392,13 +396,14 @@ void run()
     const GLint color_location = glGetUniformLocation(program, "color");
     log_message("shader program compiled and linked");
 
-    gravity::Simulation simulation(kCubeSize, kNumObjects, kMassMean, kMassStddev);
+    gravity::Simulation simulation(kCubeSize, kNumObjects, kMassMean, kMassStddev, kMaxVelocity);
     log_message("simulation created: %zu objects in a %.0f m cube, mass %.3g +/- %.3g kg, "
-                "softening %.3g m, time step %.3g s",
+                "velocity components up to %.3g m/s, softening %.3g m, time step %.3g s",
                 kNumObjects,
                 kCubeSize,
                 kMassMean,
                 kMassStddev,
+                kMaxVelocity,
                 simulation.softening(),
                 simulation.time_step());
 

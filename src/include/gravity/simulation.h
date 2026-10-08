@@ -39,21 +39,29 @@ public:
     //     standard deviation mass_stddev; non-positive draws are redrawn, so
     //     every mass is > 0,
     //   - positions are drawn uniformly from [0, cube_size) on each axis,
-    //   - velocities start at zero,
+    //   - velocities are drawn uniformly from [-max_velocity, max_velocity]
+    //     on each axis, independently (all zero when max_velocity is 0),
     //   - softening() is default_softening(cube_size, num_objects), and
     //     time_step() is default_time_step(softening(), mean of the drawn
     //     masses), or of mass_mean when there are no objects.
-    // Throws std::invalid_argument unless cube_size > 0, mass_mean > 0 and
-    // mass_stddev >= 0.
+    // Throws std::invalid_argument unless cube_size > 0, mass_mean > 0,
+    // mass_stddev >= 0 and max_velocity >= 0.
     //
     // This overload uses a random seed, so every run is different.
-    Simulation(double cube_size, std::size_t num_objects, double mass_mean, double mass_stddev);
-
-    // Same, but with a fixed seed: equal seeds give identical initial states.
     Simulation(double cube_size,
                std::size_t num_objects,
                double mass_mean,
                double mass_stddev,
+               double max_velocity);
+
+    // Same, but with a fixed seed: equal seeds give identical initial states.
+    // Velocities are drawn after the masses and positions, so for a given
+    // seed, max_velocity does not change the masses or positions.
+    Simulation(double cube_size,
+               std::size_t num_objects,
+               double mass_mean,
+               double mass_stddev,
+               double max_velocity,
                std::uint64_t seed);
 
 public:

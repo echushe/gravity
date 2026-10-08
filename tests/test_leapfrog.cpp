@@ -134,7 +134,7 @@ void test_circular_orbit_conserves_energy()
 
 void test_simulation_step_is_leapfrog()
 {
-    gravity::Simulation sim(100.0, 200, 2.0e10, 4.0e9, 9);
+    gravity::Simulation sim(100.0, 200, 2.0e10, 4.0e9, 5.0, 9);
     const double eps = sim.softening();
     const double T = sim.time_step();
     const std::size_t n = 200;
@@ -167,7 +167,7 @@ void test_simulation_cold_collapse_conserves_energy()
     // and time step.
     const std::size_t n = 500;
     const double L = 100.0;
-    gravity::Simulation sim(L, n, 2.0e10, 4.0e9, 4);
+    gravity::Simulation sim(L, n, 2.0e10, 4.0e9, 0.0, 4);
     const double eps = sim.softening();
     const std::vector<double> m = to_vector(sim.masses().data(), n);
     double total_mass = 0.0;

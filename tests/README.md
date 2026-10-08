@@ -14,8 +14,8 @@ tests/
 ├── test_device.cpp    device enumeration, DeviceInfo fields, CudaError on bad ids
 ├── test_leapfrog.cpp  leapfrog_step vs a CPU reference, energy conservation
 │                      (circular orbit, cold collapse), Simulation::step()
-└── test_simulation.cpp  data classes, Simulation construction, softening and
-                       time step (CPU only)
+└── test_simulation.cpp  data classes, Simulation construction, initial
+                       velocities, softening and time step (CPU only)
 ```
 
 Executables are written to `build/tests/`.

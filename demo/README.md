@@ -66,6 +66,7 @@ rebuild.
 | `kCubeSize` | Side of the simulation cube, in metres. |
 | `kNumObjects` | Number of objects. |
 | `kMassMean`, `kMassStddev` | Normal distribution of the masses, in kg. |
+| `kMaxVelocity` | Each starting velocity component is uniform in [−`kMaxVelocity`, `kMaxVelocity`], in m/s. 0 gives a cold collapse; about 8 m/s keeps the default cloud in virial equilibrium; above about 11.2 m/s it flies apart. The demo uses 10 m/s: the cloud first expands, but stays bound and falls back. |
 | `kWindowWidth`, `kWindowHeight` | Initial window size, in pixels. |
 | `kPointSize` | Size of each drawn object, in pixels. |
 | `kSnapshotInterval` | A PNG is saved every this many loop iterations. |
@@ -94,7 +95,7 @@ weighted by mass:
 
 ```
 [   0.176] OpenGL 4.6 (Core Profile) Mesa 23.2.1-1ubuntu3.1~22.04.4 on Mesa Intel(R) Graphics (ADL GT2)
-[   0.176] simulation created: 5000 objects in a 100 m cube, mass 2e+10 +/- 0 kg, softening 0.292 m, time step 0.0137 s
+[   0.176] simulation created: 5000 objects in a 100 m cube, mass 2e+10 +/- 0 kg, velocity components up to 10 m/s, softening 0.292 m, time step 0.0137 s
 [   0.186] entering the main loop (Space: pause / resume, Esc or close button: quit)
 [   3.279] t = 2.26 s, epsilon = 0.2924 m, T = 0.01369 s
   farthest (#2096):  position (    3.1120,    97.4284,    96.3521) m, 81.1581 m from the mean position
