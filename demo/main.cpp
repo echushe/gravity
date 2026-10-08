@@ -10,11 +10,16 @@
 //   scroll wheel      zoom
 //   space             pause / resume
 //   escape            quit
+//
+// Every kSnapshotInterval-th frame is also saved as a PNG file in the
+// directory kSnapshotDir, relative to the current working directory.
 #include <GL/glew.h>  // before GLFW, so that GLFW does not include its own gl.h
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#define STB_IMAGE_WRITE_IMPLEMENTATION  // compile the stb implementation into this file
+#include <stb_image_write.h>
 
 #include <algorithm>
 #include <chrono>
@@ -24,6 +29,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -37,10 +43,10 @@ namespace
 // masses are chosen so that the cloud collapses in about ten simulated
 // seconds, i.e. a few seconds on screen at 60 frames per second.
 constexpr float kCubeSize = 100.0f;  // m
-constexpr std::size_t kNumObjects = 2000;
+constexpr std::size_t kNumObjects = 5000;
 constexpr float kMassMean = 2.0e10f;    // kg
-constexpr float kMassStddev = 0.4e10f;  // kg
-constexpr float kTimeStep = 0.02f;      // simulated seconds per frame
+constexpr float kMassStddev = 0.0f; //0.4e10f;  // kg
+constexpr float kTimeStep = 0.01f;      // simulated seconds per frame
 
 constexpr int kWindowWidth = 1280;
 constexpr int kWindowHeight = 800;
@@ -48,6 +54,11 @@ constexpr float kPointSize = 3.0f;  // pixels
 
 // How many positions are printed to stdout, every half second.
 constexpr std::size_t kNumLoggedPositions = 10;
+
+// A PNG snapshot is saved every kSnapshotInterval iterations of the main loop,
+// as kSnapshotDir/frame_<iteration>.png.
+constexpr std::size_t kSnapshotInterval = 5;
+const char* const kSnapshotDir = "snapshots";
 
 // Prints one line to stdout, prefixed with the seconds since the first call,
 // e.g. "[   1.234] window created". Takes printf-style arguments.
@@ -257,6 +268,17 @@ void print_positions(const gravity::PositionData& positions, float simulated_tim
     std::fflush(stdout);  // show it straight away even when stdout is piped
 }
 
+// Saves the back buffer, i.e. the frame that the next glfwSwapBuffers() will
+// show, as a PNG file. Returns false if the file could not be written.
+bool save_snapshot(const char* path, int width, int height)
+{
+    std::vector<unsigned char> rgb(static_cast<std::size_t>(width) * height * 3);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);  // rows of RGB bytes, not padded to 4 bytes
+    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, rgb.data());
+    stbi_flip_vertically_on_write(1);  // OpenGL's first row is the bottom one, PNG's the top one
+    return stbi_write_png(path, width, height, 3, rgb.data(), width * 3) != 0;
+}
+
 // Calls glfwTerminate() on every way out of run(). That also destroys the
 // window and its OpenGL context, which frees every GL object created in it.
 struct GlfwSession
@@ -340,9 +362,15 @@ void run()
     float simulated_time = 0.0f;
     std::size_t num_frames = 0;
     std::size_t num_steps = 0;
+    std::size_t num_snapshots = 0;
     double title_time = glfwGetTime();
     int title_frames = 0;
     print_positions(simulation.positions(), simulated_time);
+
+    std::filesystem::create_directories(kSnapshotDir);
+    log_message("saving a snapshot every %zu frames to %s",
+                kSnapshotInterval,
+                std::filesystem::absolute(kSnapshotDir).c_str());
 
     log_message("entering the main loop (Space: pause / resume, Esc or close button: quit)");
     while (!glfwWindowShouldClose(window))
@@ -381,6 +409,22 @@ void run()
             glUniform4f(color_location, 1.0f, 0.85f, 0.55f, 1.0f);
             glBindVertexArray(objects.vao);
             glDrawArrays(GL_POINTS, 0, objects.num_vertices);
+
+            // Read the frame back before glfwSwapBuffers(), after which the
+            // back buffer's contents are undefined.
+            if (num_frames % kSnapshotInterval == 0)
+            {
+                char path[256];
+                std::snprintf(path, sizeof(path), "%s/frame_%06zu.png", kSnapshotDir, num_frames);
+                if (save_snapshot(path, width, height))
+                {
+                    ++num_snapshots;
+                }
+                else
+                {
+                    log_message("could not write %s", path);
+                }
+            }
         }
 
         glfwSwapBuffers(window);
@@ -404,10 +448,11 @@ void run()
             if (!state.paused) print_positions(simulation.positions(), simulated_time);
         }
     }
-    log_message("main loop finished: %zu frames drawn, %zu simulation steps, t = %.2f s",
+    log_message("main loop finished: %zu frames drawn, %zu simulation steps, t = %.2f s, %zu snapshots saved",
                 num_frames,
                 num_steps,
-                simulated_time);
+                simulated_time,
+                num_snapshots);
 }
 
 }  // namespace

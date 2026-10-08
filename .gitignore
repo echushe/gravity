@@ -15,6 +15,9 @@ CMakeUserPresets.json
 *.cubin
 *.fatbin
 
+# PNG frames written by gravity_demo
+snapshots/
+
 # CUDA profiler / debugger output
 *.nsys-rep
 *.ncu-rep
