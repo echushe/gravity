@@ -52,9 +52,6 @@ constexpr int kWindowWidth = 1280;
 constexpr int kWindowHeight = 800;
 constexpr float kPointSize = 3.0f;  // pixels
 
-// How many positions are printed to stdout, every half second.
-constexpr std::size_t kNumLoggedPositions = 10;
-
 // A PNG snapshot is saved every kSnapshotInterval iterations of the main loop,
 // as kSnapshotDir/frame_<iteration>.png.
 constexpr std::size_t kSnapshotInterval = 10000;
@@ -260,15 +257,69 @@ std::vector<double> cube_edges()
     return xyz;
 }
 
-// Prints the positions of the first kNumLoggedPositions objects to stdout.
-void print_positions(const gravity::PositionData& positions, double simulated_time)
+// Prints a summary of the simulation state to stdout: the softening length
+// epsilon and time step T, the object farthest from the mean position, the
+// mean position, the fastest object and the mean velocity. The means are
+// plain averages over all objects, not weighted by mass.
+void print_status(const gravity::Simulation& simulation, double simulated_time)
 {
-    const std::size_t n = std::min(kNumLoggedPositions, positions.size());
-    log_message("t = %.2f s, positions of the first %zu objects:", simulated_time, n);
+    log_message("t = %.2f s, epsilon = %.4g m, T = %.4g s",
+                simulated_time,
+                simulation.softening(),
+                simulation.time_step());
+
+    const gravity::PositionData positions = simulation.positions();
+    const gravity::VelocityData velocities = simulation.velocities();
+    const std::size_t n = positions.size();
+    if (n == 0) return;
+    auto position = [&](std::size_t i) { return glm::dvec3(positions.x(i), positions.y(i), positions.z(i)); };
+    auto velocity = [&](std::size_t i) { return glm::dvec3(velocities.x(i), velocities.y(i), velocities.z(i)); };
+
+    glm::dvec3 mean_position(0.0);
+    glm::dvec3 mean_velocity(0.0);
     for (std::size_t i = 0; i < n; ++i)
     {
-        std::printf("  %2zu: (%10.4f, %10.4f, %10.4f)\n", i, positions.x(i), positions.y(i), positions.z(i));
+        mean_position += position(i);
+        mean_velocity += velocity(i);
     }
+    mean_position /= static_cast<double>(n);
+    mean_velocity /= static_cast<double>(n);
+
+    std::size_t farthest = 0;
+    std::size_t fastest = 0;
+    double max_distance = -1.0;
+    double max_speed = -1.0;
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        const double distance = glm::length(position(i) - mean_position);
+        const double speed = glm::length(velocity(i));
+        if (distance > max_distance)
+        {
+            max_distance = distance;
+            farthest = i;
+        }
+        if (speed > max_speed)
+        {
+            max_speed = speed;
+            fastest = i;
+        }
+    }
+
+    const glm::dvec3 p = position(farthest);
+    const glm::dvec3 v = velocity(fastest);
+    char label[48];
+    std::snprintf(label, sizeof(label), "farthest (#%zu):", farthest);
+    std::printf("  %-18s position (%10.4f, %10.4f, %10.4f) m, %.4f m from the mean position\n",
+                label, p.x, p.y, p.z, max_distance);
+    std::printf("  %-18s position (%10.4f, %10.4f, %10.4f) m\n",
+                "mean:", mean_position.x, mean_position.y, mean_position.z);
+    std::snprintf(label, sizeof(label), "fastest (#%zu):", fastest);
+    std::printf("  %-18s velocity (%10.4f, %10.4f, %10.4f) m/s, speed %.4f m/s\n",
+                label, v.x, v.y, v.z, max_speed);
+    // Scientific notation: with equal masses the mean velocity is the
+    // centre-of-mass velocity, which stays at rounding level (~1e-16).
+    std::printf("  %-18s velocity (%10.3e, %10.3e, %10.3e) m/s, speed %.3e m/s\n",
+                "mean:", mean_velocity.x, mean_velocity.y, mean_velocity.z, glm::length(mean_velocity));
     std::fflush(stdout);  // show it straight away even when stdout is piped
 }
 
@@ -371,7 +422,7 @@ void run()
     std::size_t num_snapshots = 0;
     double title_time = glfwGetTime();
     int title_frames = 0;
-    print_positions(simulation.positions(), simulated_time);
+    print_status(simulation, simulated_time);
 
     std::filesystem::create_directories(kSnapshotDir);
     log_message("saving a snapshot every %zu frames to %s",
@@ -451,7 +502,7 @@ void run()
             glfwSetWindowTitle(window, title);
             title_time = now;
             title_frames = 0;
-            if (!state.paused) print_positions(simulation.positions(), simulated_time);
+            if (!state.paused) print_status(simulation, simulated_time);
         }
     }
     log_message("main loop finished: %zu frames drawn, %zu simulation steps, t = %.2f s, %zu snapshots saved",

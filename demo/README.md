@@ -68,7 +68,6 @@ rebuild.
 | `kMassMean`, `kMassStddev` | Normal distribution of the masses, in kg. |
 | `kWindowWidth`, `kWindowHeight` | Initial window size, in pixels. |
 | `kPointSize` | Size of each drawn object, in pixels. |
-| `kNumLoggedPositions` | How many positions are printed to stdout. |
 | `kSnapshotInterval` | A PNG is saved every this many loop iterations. |
 | `kSnapshotDir` | Folder for the PNG files, relative to the working directory. |
 
@@ -87,17 +86,25 @@ pass per second on screen.
 
 **Log.** Every line on stdout starts with the seconds since start-up: start-up
 steps, the GPU used for drawing, the simulation settings, pause/resume and
-Esc, and a summary at exit. Every half second (while not paused) the
-positions of the first `kNumLoggedPositions` objects are printed:
+Esc, and a summary at exit. At start-up and every half second (while not
+paused), a status block shows the softening length ε and time step T, the
+object farthest from the mean position, the mean position, the fastest object
+and the mean velocity. The means are plain averages over all objects, not
+weighted by mass:
 
 ```
-[   0.186] OpenGL 4.6 (Core Profile) Mesa 23.2.1-1ubuntu3.1~22.04.4 on Mesa Intel(R) Graphics (ADL GT2)
-[   0.196] simulation created: 5000 objects in a 100 m cube, mass 2e+10 +/- 0 kg, softening 0.292 m, time step 0.0137 s
-[   0.206] entering the main loop (Space: pause / resume, Esc or close button: quit)
-[   0.694] t = 0.34 s, positions of the first 10 objects:
-   0: (   99.5982,    64.1734,    79.7446)
-   ...
+[   0.176] OpenGL 4.6 (Core Profile) Mesa 23.2.1-1ubuntu3.1~22.04.4 on Mesa Intel(R) Graphics (ADL GT2)
+[   0.176] simulation created: 5000 objects in a 100 m cube, mass 2e+10 +/- 0 kg, softening 0.292 m, time step 0.0137 s
+[   0.186] entering the main loop (Space: pause / resume, Esc or close button: quit)
+[   3.279] t = 2.26 s, epsilon = 0.2924 m, T = 0.01369 s
+  farthest (#2096):  position (    3.1120,    97.4284,    96.3521) m, 81.1581 m from the mean position
+  mean:              position (   50.3934,    50.0989,    50.4062) m
+  fastest (#1200):   velocity (    2.5899,     5.4899,    -0.9986) m/s, speed 6.1517 m/s
+  mean:              velocity ( 1.290e-17,  2.505e-17, -1.181e-17) m/s, speed 3.055e-17 m/s
 ```
+
+With equal masses the mean velocity is the centre-of-mass velocity, which
+should stay at rounding level: total momentum is conserved.
 
 **Snapshots.** Every `kSnapshotInterval` iterations of the main loop, the
 frame is saved as `snapshots/frame_<iteration>.png` (iteration numbers are

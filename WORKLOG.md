@@ -187,6 +187,19 @@ obvious changes. Open follow-ups are collected at the end.
 - Results for the demo's setup (5,000 objects, 1.5 free-fall times): energy
   error 0.5% instead of 98%. `step()` still takes about 9 ms, and the demo
   still runs at 60 fps.
+- Commit: `1a796ef`.
+
+### 13. Reworked the demo's status log
+
+- The periodic log (at start-up and every half second) now prints ε and T,
+  the object farthest from the mean position (index, position, distance),
+  the mean position, the fastest object (index, velocity, speed) and the
+  mean velocity, instead of the positions of the first 10 objects.
+  `print_positions()` became `print_status()`; `kNumLoggedPositions` is gone.
+- The means are unweighted averages over the objects. The mean velocity is
+  printed in scientific notation: with equal masses it is the centre-of-mass
+  velocity and stays around 1e-17 m/s, which shows that momentum is
+  conserved.
 
 ## Open follow-ups
 
