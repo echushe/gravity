@@ -17,7 +17,9 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdarg>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -44,6 +46,24 @@ constexpr int kWindowWidth = 1280;
 constexpr int kWindowHeight = 800;
 constexpr float kPointSize = 3.0f;  // pixels
 
+// How many positions are printed to stdout, every half second.
+constexpr std::size_t kNumLoggedPositions = 10;
+
+// Prints one line to stdout, prefixed with the seconds since the first call,
+// e.g. "[   1.234] window created". Takes printf-style arguments.
+void log_message(const char* format, ...)
+{
+    static const auto start = std::chrono::steady_clock::now();
+    const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - start;
+    std::printf("[%8.3f] ", elapsed.count());
+    va_list args;
+    va_start(args, format);
+    std::vprintf(format, args);
+    va_end(args);
+    std::printf("\n");
+    std::fflush(stdout);  // show it straight away even when stdout is piped
+}
+
 const char* const kVertexShader = R"(
 #version 330 core
 layout(location = 0) in vec3 position;
@@ -59,12 +79,9 @@ void main()
 const char* const kFragmentShader = R"(
 #version 330 core
 uniform vec4 color;
-uniform bool round_points;
 out vec4 frag_color;
 void main()
 {
-    // Cut the square point sprite down to a disc.
-    if (round_points && length(gl_PointCoord - vec2(0.5)) > 0.5) discard;
     frag_color = color;
 }
 )";
@@ -98,8 +115,17 @@ void on_glfw_error(int code, const char* description)
 void on_key(GLFWwindow* window, int key, int /*scancode*/, int action, int /*mods*/)
 {
     if (action != GLFW_PRESS) return;
-    if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(window, GLFW_TRUE);
-    if (key == GLFW_KEY_SPACE) app_state(window).paused = !app_state(window).paused;
+    if (key == GLFW_KEY_ESCAPE)
+    {
+        log_message("Esc pressed: closing the window");
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+    if (key == GLFW_KEY_SPACE)
+    {
+        bool& paused = app_state(window).paused;
+        paused = !paused;
+        log_message("simulation %s", paused ? "paused" : "resumed");
+    }
 }
 
 void on_mouse_button(GLFWwindow* window, int button, int action, int /*mods*/)
@@ -219,6 +245,18 @@ std::vector<float> cube_edges()
     return xyz;
 }
 
+// Prints the positions of the first kNumLoggedPositions objects to stdout.
+void print_positions(const gravity::PositionData& positions, float simulated_time)
+{
+    const std::size_t n = std::min(kNumLoggedPositions, positions.size());
+    log_message("t = %.2f s, positions of the first %zu objects:", simulated_time, n);
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        std::printf("  %2zu: (%10.4f, %10.4f, %10.4f)\n", i, positions.x(i), positions.y(i), positions.z(i));
+    }
+    std::fflush(stdout);  // show it straight away even when stdout is piped
+}
+
 // Calls glfwTerminate() on every way out of run(). That also destroys the
 // window and its OpenGL context, which frees every GL object created in it.
 struct GlfwSession
@@ -226,14 +264,20 @@ struct GlfwSession
     GlfwSession()
     {
         if (!glfwInit()) throw std::runtime_error("glfwInit failed");
+        log_message("GLFW %s initialised", glfwGetVersionString());
     }
-    ~GlfwSession() { glfwTerminate(); }
+    ~GlfwSession()
+    {
+        glfwTerminate();
+        log_message("GLFW terminated");
+    }
     GlfwSession(const GlfwSession&) = delete;
     GlfwSession& operator=(const GlfwSession&) = delete;
 };
 
 void run()
 {
+    log_message("starting gravity_demo");
     glfwSetErrorCallback(on_glfw_error);
     GlfwSession glfw;
 
@@ -243,6 +287,7 @@ void run()
     glfwWindowHint(GLFW_SAMPLES, 4);
     GLFWwindow* window = glfwCreateWindow(kWindowWidth, kWindowHeight, "gravity demo", nullptr, nullptr);
     if (!window) throw std::runtime_error("could not create an OpenGL 3.3 window");
+    log_message("created %dx%d window", kWindowWidth, kWindowHeight);
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);  // vsync: one simulation step per displayed frame
 
@@ -252,7 +297,8 @@ void run()
         throw std::runtime_error(std::string("glewInit failed: ") +
                                  reinterpret_cast<const char*>(glewGetErrorString(error)));
     }
-    std::printf("OpenGL %s on %s\n",
+    log_message("GLEW %s initialised", reinterpret_cast<const char*>(glewGetString(GLEW_VERSION)));
+    log_message("OpenGL %s on %s",
                 reinterpret_cast<const char*>(glGetString(GL_VERSION)),
                 reinterpret_cast<const char*>(glGetString(GL_RENDERER)));
 
@@ -267,15 +313,24 @@ void run()
     const GLint view_projection_location = glGetUniformLocation(program, "view_projection");
     const GLint point_size_location = glGetUniformLocation(program, "point_size");
     const GLint color_location = glGetUniformLocation(program, "color");
-    const GLint round_points_location = glGetUniformLocation(program, "round_points");
+    log_message("shader program compiled and linked");
 
     gravity::Simulation simulation(kCubeSize, kNumObjects, kMassMean, kMassStddev);
+    log_message("simulation created: %zu objects in a %.0f m cube, mass %.3g +/- %.3g kg, time step %.3g s",
+                kNumObjects,
+                kCubeSize,
+                kMassMean,
+                kMassStddev,
+                kTimeStep);
 
     const std::vector<float> edges = cube_edges();
     const Mesh cube = make_mesh(edges.data(), edges.size() / 3, GL_STATIC_DRAW);
     // PositionData is laid out as x0, y0, z0, x1, ..., which is exactly the
     // vertex layout, so it is copied into the buffer as is.
     const Mesh objects = make_mesh(simulation.positions().data(), kNumObjects, GL_DYNAMIC_DRAW);
+    log_message("vertex buffers created: %d cube vertices, %d object vertices",
+                cube.num_vertices,
+                objects.num_vertices);
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_PROGRAM_POINT_SIZE);
@@ -283,15 +338,21 @@ void run()
     glClearColor(0.02f, 0.02f, 0.05f, 1.0f);
 
     float simulated_time = 0.0f;
+    std::size_t num_frames = 0;
+    std::size_t num_steps = 0;
     double title_time = glfwGetTime();
     int title_frames = 0;
+    print_positions(simulation.positions(), simulated_time);
 
+    log_message("entering the main loop (Space: pause / resume, Esc or close button: quit)");
     while (!glfwWindowShouldClose(window))
     {
+        ++num_frames;
         if (!state.paused)
         {
             simulation.step(kTimeStep);
             simulated_time += kTimeStep;
+            ++num_steps;
             const gravity::PositionData positions = simulation.positions();
             glBindBuffer(GL_ARRAY_BUFFER, objects.vbo);
             glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * positions.size() * sizeof(float), positions.data());
@@ -311,12 +372,12 @@ void run()
             glUniformMatrix4fv(view_projection_location, 1, GL_FALSE, glm::value_ptr(vp));
             glUniform1f(point_size_location, kPointSize);
 
-            glUniform1i(round_points_location, GL_FALSE);
             glUniform4f(color_location, 0.35f, 0.35f, 0.45f, 1.0f);
             glBindVertexArray(cube.vao);
             glDrawArrays(GL_LINES, 0, cube.num_vertices);
 
-            glUniform1i(round_points_location, GL_TRUE);
+            // Plain square points. Do not round them with gl_PointCoord: Mesa's
+            // Intel driver leaves it at (0, 0), so every fragment would be cut.
             glUniform4f(color_location, 1.0f, 0.85f, 0.55f, 1.0f);
             glBindVertexArray(objects.vao);
             glDrawArrays(GL_POINTS, 0, objects.num_vertices);
@@ -340,8 +401,13 @@ void run()
             glfwSetWindowTitle(window, title);
             title_time = now;
             title_frames = 0;
+            if (!state.paused) print_positions(simulation.positions(), simulated_time);
         }
     }
+    log_message("main loop finished: %zu frames drawn, %zu simulation steps, t = %.2f s",
+                num_frames,
+                num_steps,
+                simulated_time);
 }
 
 }  // namespace
