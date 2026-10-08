@@ -43,7 +43,6 @@ private:
     MassData masses_;
     PositionData positions_;
     VelocityData velocities_;
-    AccelerationData accelerations_;
 };
 
 }  // namespace gravity

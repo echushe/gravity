@@ -313,7 +313,7 @@ void calculate_gravity_velocity_and_position(const float* masses,
     d_positions.copy_from_host(positions);
     d_velocities.copy_from_host(velocities);
 
-    calculate_gravity(d_masses.get(), d_positions.get(), d_accelerations.get(), G, n);
+    calculate_gravity_device(d_masses.get(), d_positions.get(), d_accelerations.get(), G, n);
     calculate_velocity_and_position_device(d_positions.get(), d_velocities.get(), d_accelerations.get(),
                                            d_new_positions.get(), d_new_velocities.get(), T, n);
 
