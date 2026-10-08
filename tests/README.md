@@ -12,7 +12,8 @@ tests/
 ├── CMakeLists.txt     one executable + one CTest test per test_* file
 ├── test_common.h      CHECK / CHECK_NEAR / CHECK_THROWS macros and test::run()
 ├── test_device.cpp    device enumeration, DeviceInfo fields, CudaError on bad ids
-└── test_saxpy.cu      saxpy() and saxpy_device() against a CPU reference
+├── test_saxpy.cu      saxpy() and saxpy_device() against a CPU reference
+└── test_simulation.cpp  data classes and Simulation construction (CPU only)
 ```
 
 Executables are written to `build/tests/`.
@@ -54,6 +55,8 @@ $ ./build/tests/test_device
 
 - **Exit status:** 0 means pass or skip; 1 means at least one check failed.
 - **No GPU:** if no CUDA device is visible, a test prints `[SKIP]` and exits 0.
+  Tests that don't need a GPU pass `false` as the third argument of
+  `test::run()`, so they still run (see `test_simulation.cpp`).
 - **Checks don't abort.** `CHECK(cond)`, `CHECK_NEAR(actual, expected, tol)`
   and `CHECK_THROWS(expr, Type)` print the file, line and expression of a
   failure and keep going, so one run reports every failing check.

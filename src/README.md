@@ -15,11 +15,15 @@ gravity/
 ├── CMakeLists.txt              top-level project: compiler settings, GPU target, options
 └── src/
     ├── CMakeLists.txt          the `gravity` library target
-    ├── include/gravity/gravity.h   public API (the only header consumers include)
+    ├── include/gravity/        public headers (the only ones consumers include)
+    │   ├── gravity.h           device queries, CudaError, GPU compute functions
+    │   ├── object_data.h       MassData, PositionData, VelocityData, AccelerationData
+    │   └── simulation.h        Simulation: objects with mass moving in a cube
     ├── cuda_check.h            internal: GRAVITY_CUDA_CHECK -> gravity::CudaError
     ├── device_buffer.h         internal: RAII wrapper around cudaMalloc/cudaFree
     ├── device.cpp              device queries (CUDA runtime API only, built with g++)
-    └── saxpy.cu                example kernel + host wrappers (built with nvcc)
+    ├── saxpy.cu                kernels + host wrappers (built with nvcc)
+    └── simulation.cpp          Simulation setup (plain C++, no CUDA, built with g++)
 ```
 
 Build output goes into the build directory you choose (`build/` below). The
@@ -111,6 +115,8 @@ comments.
 | `void saxpy(a, x, y, n)` | `y = a*x + y` on **host** arrays. The library handles the copies to and from the GPU. |
 | `void saxpy_device(a, d_x, d_y, n)` | Same operation on arrays already in **device** memory. Blocks until finished. |
 | `class CudaError` | Thrown when any CUDA call fails. `what()` gives the file, line, failed call and CUDA error name; `code()` gives the `cudaError_t` value. |
+| `MassData`, `PositionData`, `VelocityData`, `AccelerationData` | Per-object state ([object_data.h](include/gravity/object_data.h)). `size()` is the number of objects. `data()` is a flat `float` array in the layout the GPU functions take: `m0, m1, ...` for masses and `x0, y0, z0, x1, ...` for the 3D quantities. |
+| `Simulation(L, n, mass_mean, mass_stddev[, seed])` | `n` objects in a cube of side `L` ([simulation.h](include/gravity/simulation.h)): masses from a normal distribution (redrawn until positive), positions uniform in `[0, L)`, zero velocities and accelerations. Pass `seed` for a reproducible setup. Uses no CUDA directly. |
 
 ## Adding code
 

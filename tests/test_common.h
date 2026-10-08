@@ -17,11 +17,11 @@ namespace test
 inline int failures = 0;
 
 // Runs `body`, catching unexpected exceptions. Skips (exit code 0) when no
-// CUDA device is available.
+// CUDA device is available, unless needs_gpu is false.
 template <typename Fn>
-int run(const char* name, Fn&& body)
+int run(const char* name, Fn&& body, bool needs_gpu = true)
 {
-    if (gravity::device_count() == 0)
+    if (needs_gpu && gravity::device_count() == 0)
     {
         std::printf("[SKIP] %s: no CUDA device available\n", name);
         return 0;

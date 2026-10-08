@@ -2,6 +2,7 @@
 add_library(gravity
     device.cpp
     saxpy.cu
+    simulation.cpp
 )
 add_library(gravity::gravity ALIAS gravity)
 
