@@ -1,5 +1,6 @@
 // Tests the per-object data classes and Simulation construction.
 // CPU only: runs even without a GPU.
+#include <cmath>
 #include <stdexcept>
 #include <type_traits>
 
@@ -73,6 +74,50 @@ void test_simulation_rejects_bad_arguments()
     CHECK_THROWS(gravity::Simulation(1.0, 10, -5.0, 1.0), std::invalid_argument);
     CHECK_THROWS(gravity::Simulation(1.0, 10, 5.0, -1.0), std::invalid_argument);
     CHECK_THROWS(gravity::Simulation(NAN, 10, 5.0, 1.0), std::invalid_argument);
+
+    // step() checks the time step before doing any GPU work.
+    gravity::Simulation sim(1.0, 10, 5.0, 1.0, 3);
+    CHECK_THROWS(sim.step(0.0), std::invalid_argument);
+    CHECK_THROWS(sim.step(-0.1), std::invalid_argument);
+    CHECK_THROWS(sim.step(NAN), std::invalid_argument);
+}
+
+void test_softening_and_time_step()
+{
+    using gravity::Simulation;
+    const double G = Simulation::kGravitationalConstant;
+
+    // 1000 objects in a 100 m cube are 10 m apart on average.
+    CHECK_NEAR(Simulation::default_softening(100.0, 1000), Simulation::kSofteningFraction * 10.0, 1e-12);
+    // No objects count as one: the mean spacing is the cube size.
+    CHECK_NEAR(Simulation::default_softening(100.0, 0), Simulation::kSofteningFraction * 100.0, 1e-12);
+
+    const double eps = 0.5;
+    const double m = 2.0e10;
+    CHECK_NEAR(Simulation::default_time_step(eps, m),
+               Simulation::kTimeStepFraction * std::sqrt(eps * eps * eps / (G * m)),
+               1e-15);
+    CHECK_THROWS(Simulation::default_time_step(0.0, m), std::invalid_argument);
+    CHECK_THROWS(Simulation::default_time_step(eps, 0.0), std::invalid_argument);
+    CHECK_THROWS(Simulation::default_time_step(NAN, m), std::invalid_argument);
+
+    // Equal masses: the time step uses mass_mean itself.
+    const Simulation equal_masses(100.0, 1000, m, 0.0, 1);
+    CHECK_NEAR(equal_masses.softening(), Simulation::default_softening(100.0, 1000), 1e-12);
+    CHECK_NEAR(equal_masses.time_step(), Simulation::default_time_step(equal_masses.softening(), m), 1e-15);
+
+    // Varying masses: the time step uses the mean of the masses actually drawn.
+    const Simulation varied_masses(100.0, 1000, m, 0.5 * m, 2);
+    const gravity::MassData masses = varied_masses.masses();
+    double total = 0.0;
+    for (std::size_t i = 0; i < masses.size(); ++i) total += masses[i];
+    CHECK_NEAR(varied_masses.time_step(),
+               Simulation::default_time_step(varied_masses.softening(), total / masses.size()),
+               1e-15);
+
+    // No objects: the time step falls back to mass_mean.
+    const Simulation empty(100.0, 0, m, 0.0);
+    CHECK_NEAR(empty.time_step(), Simulation::default_time_step(empty.softening(), m), 1e-15);
 }
 
 }  // namespace
@@ -87,6 +132,7 @@ int main()
             test_vector3_data();
             test_simulation_construction();
             test_simulation_rejects_bad_arguments();
+            test_softening_and_time_step();
         },
         /*needs_gpu=*/false);
 }

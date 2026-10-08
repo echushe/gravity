@@ -47,18 +47,23 @@ DeviceInfo device_info(int device = 0);
 // positions: array of body positions of length 3*n (x, y, z for each body).
 // accelerations: output array of length 3*n.
 // G: gravitational constant.
+// epsilon: softening length (Plummer softening): every squared distance r^2
+//   becomes r^2 + epsilon^2, which caps the force of close encounters. See
+//   Simulation::default_softening() for a value that suits the setup.
 // n: number of bodies.
 // All arrays are host memory. Everything is computed in double precision.
 void calculate_gravity(const double* masses,
                        const double* positions,
                        double* accelerations,
                        const double G,
+                       const double epsilon,
                        std::size_t n);
 
 void calculate_gravity_device(const double* d_masses,
                               const double* d_positions,
                               double* d_accelerations,
                               const double G,
+                              const double epsilon,
                               std::size_t n);
 
 void calculate_velocity(const double* velocities,
@@ -95,6 +100,7 @@ void calculate_gravity_velocity_and_position(const double* masses,
                                              double* new_positions,
                                              double* new_velocities,
                                              const double G,
+                                             const double epsilon,
                                              const double T,
                                              std::size_t n);
 

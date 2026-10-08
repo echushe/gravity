@@ -32,8 +32,11 @@ __global__ void calculate_gravity_kernel_1D(const double* __restrict__ masses,
                                             const double* __restrict__ positions,
                                             double* __restrict__ accelerations,
                                             const double G,
+                                            const double epsilon,
                                             std::size_t n)
 {
+    // Plummer softening: r^2 is replaced by r^2 + epsilon^2.
+    const double eps2 = epsilon * epsilon;
     const std::size_t n_threads = static_cast<std::size_t>(blockDim.x) * gridDim.x;
     const std::size_t offset = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     for (std::size_t i = offset; i < n; i += n_threads)
@@ -54,7 +57,7 @@ __global__ void calculate_gravity_kernel_1D(const double* __restrict__ masses,
             const double dx = x_j - x_i;
             const double dy = y_j - y_i;
             const double dz = z_j - z_i;
-            const double dist_sqr = dx * dx + dy * dy + dz * dz + 1e-10;
+            const double dist_sqr = dx * dx + dy * dy + dz * dz + eps2;
             const double inv_dist = rsqrt(dist_sqr);
             const double inv_dist3 = inv_dist * inv_dist * inv_dist;
             const double f = m_j * inv_dist3;
@@ -72,8 +75,10 @@ __global__ void calculate_gravity_kernel_2D(const double* __restrict__ masses,
                                             const double* __restrict__ positions,
                                             double* __restrict__ accelerations,
                                             const double G,
+                                            const double epsilon,
                                             std::size_t n)
 {
+    const double eps2 = epsilon * epsilon;  // Plummer softening, as in the 1D kernel
     // The output accelerations will be a 2D array corresponding to the 2D grid of threads.
     // So size of the output array will be 3 * n * n
 
@@ -109,7 +114,7 @@ __global__ void calculate_gravity_kernel_2D(const double* __restrict__ masses,
             const double dx = x_j - x_i;
             const double dy = y_j - y_i;
             const double dz = z_j - z_i;
-            const double dist_sqr = dx * dx + dy * dy + dz * dz + 1e-10;
+            const double dist_sqr = dx * dx + dy * dy + dz * dz + eps2;
             const double inv_dist = rsqrt(dist_sqr);
             const double inv_dist3 = inv_dist * inv_dist * inv_dist;
             const double f = m_j * inv_dist3;
@@ -197,12 +202,13 @@ void calculate_gravity_device(const double* d_masses,
                               const double* d_positions,
                               double* d_accelerations,
                               const double G,
+                              const double epsilon,
                               std::size_t n)
 {
     if (n == 0) return;
     calculate_gravity_kernel_1D<<<
         std::min<std::size_t>((n + kBlockSize - 1) / kBlockSize, kMaxBlocks), kBlockSize>>>(
-        d_masses, d_positions, d_accelerations, G, n);
+        d_masses, d_positions, d_accelerations, G, epsilon, n);
     GRAVITY_CUDA_CHECK(cudaGetLastError());
     GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
 }
@@ -211,6 +217,7 @@ void calculate_gravity(const double* masses,
                        const double* positions,
                        double* accelerations,
                        const double G,
+                       const double epsilon,
                        std::size_t n)
 {
     if (n == 0) return;
@@ -222,7 +229,7 @@ void calculate_gravity(const double* masses,
     // Assuming a kernel calculate_gravity_kernel_1D is defined elsewhere
     calculate_gravity_kernel_1D<<<
         std::min<std::size_t>((n + kBlockSize - 1) / kBlockSize, kMaxBlocks), kBlockSize>>>(
-        d_masses.get(), d_positions.get(), d_accelerations.get(), G, n);
+        d_masses.get(), d_positions.get(), d_accelerations.get(), G, epsilon, n);
     GRAVITY_CUDA_CHECK(cudaGetLastError());
     GRAVITY_CUDA_CHECK(cudaDeviceSynchronize());
     d_accelerations.copy_to_host(accelerations);
@@ -303,6 +310,7 @@ void calculate_gravity_velocity_and_position(const double* masses,
                                              double* new_positions,
                                              double* new_velocities,
                                              const double G,
+                                             const double epsilon,
                                              const double T,
                                              std::size_t n)
 {
@@ -321,7 +329,7 @@ void calculate_gravity_velocity_and_position(const double* masses,
     d_positions.copy_from_host(positions);
     d_velocities.copy_from_host(velocities);
 
-    calculate_gravity_device(d_masses.get(), d_positions.get(), d_accelerations.get(), G, n);
+    calculate_gravity_device(d_masses.get(), d_positions.get(), d_accelerations.get(), G, epsilon, n);
     calculate_velocity_and_position_device(d_positions.get(), d_velocities.get(), d_accelerations.get(),
                                            d_new_positions.get(), d_new_velocities.get(), T, n);
 

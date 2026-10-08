@@ -3,11 +3,26 @@
 
 #include "gravity/gravity.h"
 
+#include <algorithm>
+#include <cmath>
 #include <random>
 #include <stdexcept>
 
 namespace gravity
 {
+
+double Simulation::default_softening(double cube_size, std::size_t num_objects)
+{
+    const double mean_spacing = cube_size / std::cbrt(static_cast<double>(std::max<std::size_t>(num_objects, 1)));
+    return kSofteningFraction * mean_spacing;
+}
+
+double Simulation::default_time_step(double softening, double mean_mass)
+{
+    if (!(softening > 0.0)) throw std::invalid_argument("Simulation::default_time_step: softening must be > 0");
+    if (!(mean_mass > 0.0)) throw std::invalid_argument("Simulation::default_time_step: mean_mass must be > 0");
+    return kTimeStepFraction * std::sqrt(softening * softening * softening / (kGravitationalConstant * mean_mass));
+}
 
 Simulation::Simulation(double cube_size, std::size_t num_objects, double mass_mean, double mass_stddev)
     : Simulation(cube_size, num_objects, mass_mean, mass_stddev, std::random_device{}())
@@ -72,6 +87,21 @@ Simulation::Simulation(double cube_size,
     }
 
     // velocities_ are already zero-filled by their constructors.
+
+    double mean_mass = mass_mean;
+    if (num_objects > 0)
+    {
+        double total_mass = 0.0;
+        for (std::size_t i = 0; i < num_objects; ++i) total_mass += this->masses_[i];
+        mean_mass = total_mass / static_cast<double>(num_objects);
+    }
+    this->softening_ = default_softening(cube_size, num_objects);
+    this->time_step_ = default_time_step(this->softening_, mean_mass);
+}
+
+void Simulation::step()
+{
+    step(this->time_step_);
 }
 
 void Simulation::step(double time_step)
@@ -87,7 +117,8 @@ void Simulation::step(double time_step)
                                             this->velocities_.data(),
                                             new_positions.data(),
                                             new_velocities.data(),
-                                            6.6743e-11,
+                                            kGravitationalConstant,
+                                            this->softening_,
                                             time_step,
                                             this->masses_.size());
     

@@ -40,13 +40,13 @@ namespace
 {
 
 // Simulation set-up, in SI units: Simulation::step() uses the real G. The
-// masses are chosen so that the cloud collapses in about ten simulated
-// seconds, i.e. a few seconds on screen at 60 frames per second.
+// masses are chosen so that the cloud collapses within a few simulated
+// seconds. The softening and the time step (one step per frame) are not set
+// here: Simulation derives them from these values.
 constexpr double kCubeSize = 100.0;  // m
 constexpr std::size_t kNumObjects = 5000;
 constexpr double kMassMean = 2.0e10;    // kg
 constexpr double kMassStddev = 0.0; //0.4e10;  // kg
-constexpr double kTimeStep = 0.01;      // simulated seconds per frame
 
 constexpr int kWindowWidth = 1280;
 constexpr int kWindowHeight = 800;
@@ -342,12 +342,14 @@ void run()
     log_message("shader program compiled and linked");
 
     gravity::Simulation simulation(kCubeSize, kNumObjects, kMassMean, kMassStddev);
-    log_message("simulation created: %zu objects in a %.0f m cube, mass %.3g +/- %.3g kg, time step %.3g s",
+    log_message("simulation created: %zu objects in a %.0f m cube, mass %.3g +/- %.3g kg, "
+                "softening %.3g m, time step %.3g s",
                 kNumObjects,
                 kCubeSize,
                 kMassMean,
                 kMassStddev,
-                kTimeStep);
+                simulation.softening(),
+                simulation.time_step());
 
     const std::vector<double> edges = cube_edges();
     const Mesh cube = make_mesh(edges.data(), edges.size() / 3, GL_STATIC_DRAW);
@@ -382,8 +384,8 @@ void run()
         ++num_frames;
         if (!state.paused)
         {
-            simulation.step(kTimeStep);
-            simulated_time += kTimeStep;
+            simulation.step();
+            simulated_time += simulation.time_step();
             ++num_steps;
             const gravity::PositionData positions = simulation.positions();
             glBindBuffer(GL_ARRAY_BUFFER, objects.vbo);

@@ -66,7 +66,6 @@ rebuild.
 | `kCubeSize` | Side of the simulation cube, in metres. |
 | `kNumObjects` | Number of objects. |
 | `kMassMean`, `kMassStddev` | Normal distribution of the masses, in kg. |
-| `kTimeStep` | Simulated seconds per frame. |
 | `kWindowWidth`, `kWindowHeight` | Initial window size, in pixels. |
 | `kPointSize` | Size of each drawn object, in pixels. |
 | `kNumLoggedPositions` | How many positions are printed to stdout. |
@@ -74,8 +73,15 @@ rebuild.
 | `kSnapshotDir` | Folder for the PNG files, relative to the working directory. |
 
 The simulation uses SI units and the real gravitational constant, so the
-masses have to be large to see anything move: with 2e10 kg per object in a
-100 m cube, the cloud collapses in about ten simulated seconds.
+masses have to be large to see anything move: with 5,000 objects of 2e10 kg
+in a 100 m cube, the cloud collapses in about seven simulated seconds.
+
+There is no time-step setting: the demo advances by `simulation.time_step()`
+per frame. `Simulation` derives the softening length from the cube size and
+the number of objects, and the time step from the softening and the mean
+mass (see [../src/README.md](../src/README.md)). With the settings above
+that is ε = 0.29 m and T = 0.0137 s, so at 60 fps about 0.8 simulated seconds
+pass per second on screen.
 
 ## Output
 
@@ -86,7 +92,7 @@ positions of the first `kNumLoggedPositions` objects are printed:
 
 ```
 [   0.186] OpenGL 4.6 (Core Profile) Mesa 23.2.1-1ubuntu3.1~22.04.4 on Mesa Intel(R) Graphics (ADL GT2)
-[   0.196] simulation created: 5000 objects in a 100 m cube, mass 2e+10 +/- 0 kg, time step 0.01 s
+[   0.196] simulation created: 5000 objects in a 100 m cube, mass 2e+10 +/- 0 kg, softening 0.292 m, time step 0.0137 s
 [   0.206] entering the main loop (Space: pause / resume, Esc or close button: quit)
 [   0.694] t = 0.34 s, positions of the first 10 objects:
    0: (   99.5982,    64.1734,    79.7446)
@@ -115,7 +121,7 @@ second, so `-framerate 12` plays back at real speed and 24 at twice that.
 
 Each iteration of the `while` loop in `run()`:
 
-1. calls `simulation.step(kTimeStep)` (skipped while paused),
+1. calls `simulation.step()` (skipped while paused),
 2. copies `simulation.positions()` into the vertex buffer with
    `glBufferSubData`; `PositionData` is already in the vertex layout
    (`x0, y0, z0, x1, ...`). The buffer holds `double`s (`GL_DOUBLE`), and
@@ -153,10 +159,13 @@ the GPU the bottleneck.
   `gl_PointCoord` at (0, 0), so every fragment was discarded and nothing but
   the cube was visible. At 3 px a square looks the same as a disc. For larger
   round points, compare `gl_FragCoord` with the point's centre instead.
-- **Objects thrown far away.** The kernel adds only 1e-10 m² to each squared
-  distance, so two objects that pass very close get enormous accelerations
-  and fly off. A larger softening (around 1 m² for the default settings) or a
-  smaller time step reduces this.
+- **Energy drift.** Since the softening and time step are derived from the
+  setup, objects are no longer thrown out of the cube. But `step()`
+  integrates with `v += a·T` using only the old acceleration, which is first
+  order and slowly adds energy: about 100% of the initial energy by 1.5
+  free-fall times for the default settings. A leapfrog (kick-drift-kick)
+  integrator keeps this to about 0.4% at the same cost per step (see the
+  follow-ups in [../WORKLOG.md](../WORKLOG.md)).
 - **Copies every frame.** `step()` copies the whole state to the GPU and back,
   `positions()` returns a copy, and the demo uploads the positions to OpenGL
   again. This is fine for thousands of objects. If it becomes a bottleneck,
