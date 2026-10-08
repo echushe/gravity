@@ -22,7 +22,7 @@ gravity/
     ├── cuda_check.h            internal: GRAVITY_CUDA_CHECK -> gravity::CudaError
     ├── device_buffer.h         internal: RAII wrapper around cudaMalloc/cudaFree
     ├── device.cpp              device queries (CUDA runtime API only, built with g++)
-    ├── saxpy.cu                kernels + host wrappers (built with nvcc)
+    ├── nbody_kernels.cu        N-body kernels + host wrappers (built with nvcc)
     └── simulation.cpp          Simulation setup (plain C++, no CUDA, built with g++)
 ```
 
@@ -69,12 +69,11 @@ extension can use it for code completion and navigation.
 ## Using the library
 
 ```cpp
-#include <gravity/gravity.h>
+#include <gravity/simulation.h>
 
 int main() {
-    float x[] = {1, 2, 3};
-    float y[] = {10, 20, 30};
-    gravity::saxpy(2.0f, x, y, 3);   // y is now {12, 24, 36}
+    // 1000 objects in a 100 x 100 x 100 cube, masses drawn from N(5, 1).
+    gravity::Simulation sim(100.0f, 1000, 5.0f, 1.0f);
 }
 ```
 
@@ -112,8 +111,6 @@ comments.
 |-----------------|-------------|
 | `int device_count()` | Number of visible CUDA devices. Returns 0 if there is no device or no usable driver; it never throws. |
 | `DeviceInfo device_info(int device = 0)` | Name, compute capability, SM count and memory size of a device. |
-| `void saxpy(a, x, y, n)` | `y = a*x + y` on **host** arrays. The library handles the copies to and from the GPU. |
-| `void saxpy_device(a, d_x, d_y, n)` | Same operation on arrays already in **device** memory. Blocks until finished. |
 | `class CudaError` | Thrown when any CUDA call fails. `what()` gives the file, line, failed call and CUDA error name; `code()` gives the `cudaError_t` value. |
 | `MassData`, `PositionData`, `VelocityData`, `AccelerationData` | Per-object state ([object_data.h](include/gravity/object_data.h)). `size()` is the number of objects. `data()` is a flat `float` array in the layout the GPU functions take: `m0, m1, ...` for masses and `x0, y0, z0, x1, ...` for the 3D quantities. |
 | `Simulation(L, n, mass_mean, mass_stddev[, seed])` | `n` objects in a cube of side `L` ([simulation.h](include/gravity/simulation.h)): masses from a normal distribution (redrawn until positive), positions uniform in `[0, L)`, zero velocities and accelerations. Pass `seed` for a reproducible setup. Uses no CUDA directly. |
@@ -132,7 +129,7 @@ comments.
 - **Error checking:** wrap every CUDA runtime call in `GRAVITY_CUDA_CHECK(...)`.
   After a kernel launch, check both `cudaGetLastError()` (catches launch
   errors) and, when you synchronize, `cudaDeviceSynchronize()` (catches errors
-  during execution). See `saxpy.cu`.
+  during execution). See `nbody_kernels.cu`.
 - **Device memory** in host wrappers: use `detail::DeviceBuffer<T>` so that
   memory is freed when an exception is thrown.
 - **Device code across files:** kernels are compiled without relocatable

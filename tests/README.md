@@ -12,7 +12,6 @@ tests/
 ├── CMakeLists.txt     one executable + one CTest test per test_* file
 ├── test_common.h      CHECK / CHECK_NEAR / CHECK_THROWS macros and test::run()
 ├── test_device.cpp    device enumeration, DeviceInfo fields, CudaError on bad ids
-├── test_saxpy.cu      saxpy() and saxpy_device() against a CPU reference
 └── test_simulation.cpp  data classes and Simulation construction (CPU only)
 ```
 
@@ -26,9 +25,9 @@ Run these from the project root:
 cmake -B build                                  # configure (once)
 cmake --build build -j                          # build the library and all tests
 ctest --test-dir build --output-on-failure      # run all tests
-ctest --test-dir build -R saxpy -V              # run tests matching a pattern, with full output
-cmake --build build --target test_saxpy         # build one test
-./build/tests/test_saxpy                        # run one test directly
+ctest --test-dir build -R simulation -V         # run tests matching a pattern, with full output
+cmake --build build --target test_simulation    # build one test
+./build/tests/test_simulation                   # run one test directly
 ```
 
 `ctest` exits non-zero if any test fails, so you can use it in CI.

@@ -42,15 +42,6 @@ int device_count();
 // Properties of the given device. Throws CudaError for an invalid id.
 DeviceInfo device_info(int device = 0);
 
-// y[i] = a * x[i] + y[i] for i in [0, n).
-// x and y are host pointers: the data is copied to the current device,
-// computed there, and the result is copied back into y.
-void saxpy(float a, const float* x, float* y, std::size_t n);
-
-// Same as saxpy(), but d_x and d_y are device pointers already resident on
-// the current device. Blocks until the computation has finished.
-void saxpy_device(float a, const float* d_x, float* d_y, std::size_t n);
-
 // Calculates gravitational accelerations for a set of bodies.
 // masses: array of body masses of length n.
 // positions: array of body positions of length 3*n (x, y, z for each body).

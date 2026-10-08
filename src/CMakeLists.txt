@@ -1,7 +1,7 @@
 # libgravity: static by default, shared with -DBUILD_SHARED_LIBS=ON.
 add_library(gravity
     device.cpp
-    saxpy.cu
+    nbody_kernels.cu
     simulation.cpp
 )
 add_library(gravity::gravity ALIAS gravity)
