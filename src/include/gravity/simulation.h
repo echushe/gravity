@@ -34,6 +34,10 @@ public:
                float mass_stddev,
                std::uint64_t seed);
 
+public:
+    // Advances the simulation by the given time step.
+    void step(float time_step);
+
 private:
     float cube_size_;
     MassData masses_;

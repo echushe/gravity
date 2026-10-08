@@ -87,4 +87,13 @@ void calculate_velocity_and_position_device(const float* d_positions,
                                             const float T,
                                             std::size_t n);
 
+void calculate_gravity_velocity_and_position(const float* masses,
+                                             const float* positions,
+                                             const float* velocities,
+                                             float* new_positions,
+                                             float* new_velocities,
+                                             const float G,
+                                             const float T,
+                                             std::size_t n);
+
 }  // namespace gravity

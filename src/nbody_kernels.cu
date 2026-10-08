@@ -289,4 +289,36 @@ void calculate_velocity_and_position(const float* positions,
     d_new_velocities.copy_to_host(new_velocities);
 }
 
+void calculate_gravity_velocity_and_position(const float* masses,
+                                             const float* positions,
+                                             const float* velocities,
+                                             float* new_positions,
+                                             float* new_velocities,
+                                             const float G,
+                                             const float T,
+                                             std::size_t n)
+{
+    if (n == 0) return;
+    // values in
+    detail::DeviceBuffer<float> d_masses(n);
+    detail::DeviceBuffer<float> d_positions(3 * n);
+    detail::DeviceBuffer<float> d_velocities(3 * n);
+    // values tmp
+    detail::DeviceBuffer<float> d_accelerations(3 * n);
+    // values out
+    detail::DeviceBuffer<float> d_new_positions(3 * n);
+    detail::DeviceBuffer<float> d_new_velocities(3 * n);
+
+    d_masses.copy_from_host(masses);
+    d_positions.copy_from_host(positions);
+    d_velocities.copy_from_host(velocities);
+
+    calculate_gravity(d_masses.get(), d_positions.get(), d_accelerations.get(), G, n);
+    calculate_velocity_and_position_device(d_positions.get(), d_velocities.get(), d_accelerations.get(),
+                                           d_new_positions.get(), d_new_velocities.get(), T, n);
+
+    d_new_positions.copy_to_host(new_positions);
+    d_new_velocities.copy_to_host(new_velocities);
+}
+
 }  // namespace gravity

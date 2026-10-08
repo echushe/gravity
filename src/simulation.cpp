@@ -1,6 +1,8 @@
 // Simulation setup. Plain C++: no CUDA in this file.
 #include "gravity/simulation.h"
 
+#include "gravity/gravity.h"
+
 #include <random>
 #include <stdexcept>
 
@@ -71,6 +73,22 @@ Simulation::Simulation(float cube_size,
     }
 
     // velocities_ and accelerations_ are already zero-filled by their constructors.
+}
+
+void Simulation::step(float time_step)
+{
+    if (!(time_step > 0.0f)) throw std::invalid_argument("Simulation::step: time_step must be > 0");
+
+    calculate_gravity_velocity_and_position(masses_.data(),
+                                            positions_.data(),
+                                            velocities_.data(),
+                                            positions_.data(),
+                                            velocities_.data(),
+                                            6.6743e-11,
+                                            time_step,
+                                            masses_.size());
+    
+    // Placeholder: currently does nothing.
 }
 
 }  // namespace gravity
