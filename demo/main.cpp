@@ -50,7 +50,7 @@ constexpr double kMassStddev = 0.0; //0.4e10;  // kg
 // Each velocity component is drawn uniformly from [-kMaxVelocity, kMaxVelocity].
 // For the settings above: 0 gives a cold collapse, about 8 m/s keeps the cloud
 // in virial equilibrium (2K = |U|), and above about 11.2 m/s it flies apart.
-constexpr double kMaxVelocity = 10.0;  // m/s
+constexpr double kMaxVelocity = 0.0;  // m/s
 
 constexpr int kWindowWidth = 1280;
 constexpr int kWindowHeight = 800;
@@ -58,7 +58,7 @@ constexpr float kPointSize = 3.0f;  // pixels
 
 // A PNG snapshot is saved every kSnapshotInterval iterations of the main loop,
 // as kSnapshotDir/frame_<iteration>.png.
-constexpr std::size_t kSnapshotInterval = 10000;
+constexpr std::size_t kSnapshotInterval = 5;
 const char* const kSnapshotDir = "snapshots";
 
 // Prints one line to stdout, prefixed with the seconds since the first call,
