@@ -55,3 +55,8 @@ if(GRAVITY_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+option(GRAVITY_BUILD_DEMO "Build the OpenGL demo (needs GLFW, GLEW and GLM)" ${PROJECT_IS_TOP_LEVEL})
+if(GRAVITY_BUILD_DEMO)
+    add_subdirectory(demo)
+endif()
