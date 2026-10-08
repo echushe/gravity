@@ -37,6 +37,9 @@ public:
 public:
     // Advances the simulation by the given time step.
     void step(float time_step);
+    PositionData positions() const { return this->positions_; }
+    VelocityData velocities() const { return this->velocities_; }
+    MassData masses() const { return this->masses_; }
 
 private:
     float cube_size_;
